@@ -1,4 +1,13 @@
 import React from 'react';
+import pCommander from '../assets/portrait-commander.jpg';
+import pZhulaozhong from '../assets/portrait-zhulaozhong.jpg';
+import pZhaohu from '../assets/portrait-zhaohu.jpg';
+import pZhangga from '../assets/portrait-zhangga.jpg';
+import pLixiangyang from '../assets/portrait-lixiangyang.jpg';
+import pEnemyOfficer from '../assets/portrait-enemy-officer.jpg';
+import pEnemyPuppet from '../assets/portrait-enemy-puppet.jpg';
+import pEnemySapper from '../assets/portrait-enemy-sapper.jpg';
+import pVillager from '../assets/portrait-villager.jpg';
 
 interface CharacterPortraitProps {
   portraitId: string;
@@ -7,15 +16,15 @@ interface CharacterPortraitProps {
 }
 
 const PORTRAIT_FILES: Record<string, string> = {
-  commander: './assets/portrait-commander.jpg',
-  zhulaozhong: './assets/portrait-zhulaozhong.png',
-  zhaohu: './assets/portrait-zhaohu.png',
-  zhangga: './assets/portrait-zhangga.jpg',
-  lixiangyang: './assets/portrait-lixiangyang.png',
-  enemy_officer: './assets/portrait-enemy-officer.jpg',
-  enemy_puppet: './assets/portrait-enemy-puppet.png',
-  enemy_sapper: './assets/portrait-enemy-sapper.png',
-  villager: './assets/portrait-villager.png',
+  commander: pCommander,
+  zhulaozhong: pZhulaozhong,
+  zhaohu: pZhaohu,
+  zhangga: pZhangga,
+  lixiangyang: pLixiangyang,
+  enemy_officer: pEnemyOfficer,
+  enemy_puppet: pEnemyPuppet,
+  enemy_sapper: pEnemySapper,
+  villager: pVillager,
 };
 
 export const CharacterPortrait: React.FC<CharacterPortraitProps> = ({
@@ -23,7 +32,7 @@ export const CharacterPortrait: React.FC<CharacterPortraitProps> = ({
   alt = '',
   className = 'portrait-media',
 }) => {
-  const src = PORTRAIT_FILES[portraitId] ?? './assets/portrait-villager.png';
+  const src = PORTRAIT_FILES[portraitId] ?? pVillager;
   return (
     <img
       src={src}

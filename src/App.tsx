@@ -6,6 +6,7 @@ import { MINES } from './data/mines';
 import { INITIAL_HERO_ROSTER, STAGES } from './data/stages';
 import { MaterialId, MineType, ScreenMode, Unit } from './types/game';
 import { sound } from './utils/sound';
+import titleBg from './assets/title-bg.jpg';
 
 const INITIAL_MATERIALS: Record<MaterialId, number> = {
   clay: 4,
@@ -134,7 +135,7 @@ export const App: React.FC = () => {
       <div className="title-screen">
         <div
           className="title-bg-art"
-          style={{ backgroundImage: `url('./assets/title-bg.jpg')` }}
+          style={{ backgroundImage: `url(${titleBg})` }}
         />
         <div className="title-vignette" />
 
@@ -215,7 +216,7 @@ export const App: React.FC = () => {
       <div className="complete-screen">
         <div
           className="title-bg-art"
-          style={{ backgroundImage: `url('./assets/title-bg.jpg')` }}
+          style={{ backgroundImage: `url(${titleBg})` }}
         />
         <div className="title-vignette" />
         <div className="complete-card">

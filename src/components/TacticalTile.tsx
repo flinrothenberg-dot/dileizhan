@@ -1,6 +1,16 @@
 import React from 'react';
 import { MINES } from '../data/mines';
 import { AttackFx, ExplosionFx, FloatingEffect, PlacedMine, TerrainType, Unit } from '../types/game';
+import uCommander from '../assets/unit-commander.png';
+import uZhulaozhong from '../assets/unit-zhulaozhong.png';
+import uZhaohu from '../assets/unit-zhaohu.png';
+import uZhangga from '../assets/unit-zhangga.png';
+import uLixiangyang from '../assets/unit-lixiangyang.png';
+import uEnemyOfficer from '../assets/unit-enemy_officer.png';
+import uEnemySapper from '../assets/unit-enemy_sapper.png';
+import uEnemyMg from '../assets/unit-enemy_mg.png';
+import uEnemyPuppet from '../assets/unit-enemy_puppet.png';
+import uEnemyRifle from '../assets/unit-enemy_rifle.png';
 
 interface TacticalTileProps {
   x: number;
@@ -28,19 +38,19 @@ interface TacticalTileProps {
 function getUnitSpriteSrc(unit: Unit): string {
   if (unit.faction === 'player') {
     const map: Record<string, string> = {
-      commander: './assets/unit-commander.png',
-      zhulaozhong: './assets/unit-zhulaozhong.png',
-      zhaohu: './assets/unit-zhaohu.png',
-      zhangga: './assets/unit-zhangga.png',
-      lixiangyang: './assets/unit-lixiangyang.png',
+      commander: uCommander,
+      zhulaozhong: uZhulaozhong,
+      zhaohu: uZhaohu,
+      zhangga: uZhangga,
+      lixiangyang: uLixiangyang,
     };
-    return map[unit.portraitId] ?? './assets/unit-commander.png';
+    return map[unit.portraitId] ?? uCommander;
   }
-  if (unit.isBoss) return './assets/unit-enemy_officer.png';
-  if (unit.isSapper) return './assets/unit-enemy_sapper.png';
-  if (unit.unitClass === '机枪队') return './assets/unit-enemy_mg.png';
-  if (unit.portraitId === 'enemy_puppet') return './assets/unit-enemy_puppet.png';
-  return './assets/unit-enemy_rifle.png';
+  if (unit.isBoss) return uEnemyOfficer;
+  if (unit.isSapper) return uEnemySapper;
+  if (unit.unitClass === '机枪队') return uEnemyMg;
+  if (unit.portraitId === 'enemy_puppet') return uEnemyPuppet;
+  return uEnemyRifle;
 }
 
 export const TacticalTile: React.FC<TacticalTileProps> = ({

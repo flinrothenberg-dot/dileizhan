@@ -2227,8 +2227,13 @@ body {
   }
 
   .battle-body {
-    padding: 8px 10px 24px;
+    padding: 8px 10px 92px;
     gap: 10px;
+  }
+
+  .unit-nameplate {
+    font-size: 8.5px;
+    padding: 1px 3px;
   }
 
   .board-stage {

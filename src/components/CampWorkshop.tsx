@@ -4,6 +4,7 @@ import { MATERIALS, MINES } from '../data/mines';
 import { MaterialId, MineType, Unit } from '../types/game';
 import { sound } from '../utils/sound';
 import { CharacterPortrait } from './CharacterPortrait';
+import campBg from '../assets/camp-bg.jpg';
 
 interface CampWorkshopProps {
   materials: Record<MaterialId, number>;
@@ -41,7 +42,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
     <div
       className="camp-screen"
       style={{
-        backgroundImage: `linear-gradient(180deg, rgba(18, 16, 14, 0.82), rgba(14, 12, 10, 0.92)), url('./assets/camp-bg.png')`,
+        backgroundImage: `linear-gradient(180deg, rgba(18, 16, 14, 0.82), rgba(14, 12, 10, 0.92)), url(${campBg})`,
       }}
     >
       <div className="camp-bg-overlay" />
