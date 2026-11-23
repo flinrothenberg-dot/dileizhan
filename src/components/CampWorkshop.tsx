@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Bomb, Hammer, Heart, Package, Play, Shield } from 'lucide-react';
-import { MATERIALS, MINES } from '../data/mines';
+import { Bomb, Hammer, Heart, Lock, Package, Play, Shield } from 'lucide-react';
+import { ALL_MATERIAL_IDS, ALL_MINE_TYPES, MATERIALS, MINES } from '../data/mines';
+import { getTotalMines } from '../engine/tactics';
 import { MaterialId, MineType, Unit } from '../types/game';
 import { sound } from '../utils/sound';
 import { CharacterPortrait } from './CharacterPortrait';
@@ -9,6 +10,7 @@ import campBg from '../assets/camp-bg.jpg';
 interface CampWorkshopProps {
   materials: Record<MaterialId, number>;
   mineStock: Record<MineType, number>;
+  unlockedMines: MineType[];
   roster: Unit[];
   nextStageTitle: string;
   onCraftMine: (mineType: MineType) => void;
@@ -16,12 +18,10 @@ interface CampWorkshopProps {
   onStartNextStage: () => void;
 }
 
-const MINE_LIST: MineType[] = ['tu_lei', 'weizhuang_lei', 'shi_lei'];
-const MATERIAL_KEYS: MaterialId[] = ['clay', 'stone', 'wood', 'nitre', 'sulfur', 'charcoal'];
-
 export const CampWorkshop: React.FC<CampWorkshopProps> = ({
   materials,
   mineStock,
+  unlockedMines,
   roster,
   nextStageTitle,
   onCraftMine,
@@ -30,8 +30,10 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
 }) => {
   const [selectedHeroId, setSelectedHeroId] = useState<string>(roster[0]?.id ?? 'commander');
   const selectedHero = roster.find((u) => u.id === selectedHeroId) ?? roster[0];
+  const unlockedSet = new Set<MineType>(unlockedMines);
 
   const canCraft = (mineType: MineType) => {
+    if (!unlockedSet.has(mineType)) return false;
     const recipe = MINES[mineType].recipe;
     return Object.entries(recipe).every(
       ([mat, cost]) => (materials[mat as MaterialId] ?? 0) >= (cost ?? 0)
@@ -70,7 +72,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
             <Package size={16} /> 根据地材料库
           </div>
           <div className="materials-grid">
-            {MATERIAL_KEYS.map((matId) => {
+            {ALL_MATERIAL_IDS.map((matId) => {
               const mat = MATERIALS[matId];
               return (
                 <div key={matId} className="material-chip" title={mat.description}>
@@ -92,24 +94,34 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
             <div className="card-header">
               <Hammer size={18} />
               <h2>土法造雷工坊</h2>
-              <span className="card-hint">消耗材料研制地雷，存入仓库</span>
+              <span className="card-hint">消耗材料研制六大名雷，存入仓库</span>
             </div>
 
             <div className="mine-craft-list">
-              {MINE_LIST.map((mType) => {
+              {ALL_MINE_TYPES.map((mType) => {
                 const def = MINES[mType];
+                const isUnlocked = unlockedSet.has(mType);
                 const craftable = canCraft(mType);
                 return (
-                  <div key={mType} className="craft-row">
+                  <div
+                    key={mType}
+                    className={`craft-row ${!isUnlocked ? 'craft-locked' : ''}`}
+                  >
                     <div className="craft-badge" style={{ borderColor: def.color }}>
                       <span>{def.shortName}</span>
                     </div>
                     <div className="craft-info">
                       <div className="craft-title-line">
                         <strong>{def.name}</strong>
-                        <span className="craft-stock">
-                          仓库库存：{mineStock[mType] ?? 0} 颗
-                        </span>
+                        {isUnlocked ? (
+                          <span className="craft-stock">
+                            仓库库存：{mineStock[mType] ?? 0} 颗
+                          </span>
+                        ) : (
+                          <span className="craft-lock-tag">
+                            <Lock size={11} /> 第{def.unlockStage}关剧情解锁
+                          </span>
+                        )}
                       </div>
                       <p className="craft-desc">{def.description}</p>
                       <div className="craft-recipe">
@@ -136,7 +148,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                         onCraftMine(mType);
                       }}
                     >
-                      制造 +1
+                      {isUnlocked ? '制造 +1' : '未解锁'}
                     </button>
                   </div>
                 );
@@ -149,7 +161,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
             <div className="card-header">
               <Bomb size={18} />
               <h2>游击队员配雷</h2>
-              <span className="card-hint">全体已休整至满血，点击队员分配地雷</span>
+              <span className="card-hint">已参战队员全满血，点击头像分配地雷</span>
             </div>
 
             <div className="squad-tabs">
@@ -167,7 +179,9 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                   </div>
                   <div className="squad-tab-meta">
                     <div className="squad-tab-name">{u.name}</div>
-                    <div className="squad-tab-class">{u.unitClass}</div>
+                    <div className="squad-tab-class">
+                      {u.unitClass} {u.canLayMines ? `· ${getTotalMines(u)}雷` : ''}
+                    </div>
                   </div>
                 </button>
               ))}
@@ -188,7 +202,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                       <span className="lv-pill">Lv.{selectedHero.level}</span>
                     </h3>
                     <div className="sub-title">
-                      {selectedHero.title} · 武器：{selectedHero.weaponName}
+                      {selectedHero.title} · {selectedHero.weaponName}
                     </div>
                     <div className="stat-pills">
                       <span>
@@ -197,14 +211,19 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                       <span>
                         <Shield size={13} /> 攻 {selectedHero.atk} / 防 {selectedHero.def}
                       </span>
-                      <span>移动 {selectedHero.move} 格 · 射程 {selectedHero.rangeMin}-{selectedHero.rangeMax}</span>
+                      <span>
+                        移动 {selectedHero.move} 格 · 射程 {selectedHero.rangeMin}-
+                        {selectedHero.rangeMax}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {selectedHero.canLayMines ? (
                   <div className="assign-mines-grid">
-                    {MINE_LIST.map((mType) => {
+                    {ALL_MINE_TYPES.filter(
+                      (m) => unlockedSet.has(m) || (selectedHero.mines[m] ?? 0) > 0
+                    ).map((mType) => {
                       const def = MINES[mType];
                       const carried = selectedHero.mines[mType] ?? 0;
                       const inStock = mineStock[mType] ?? 0;
@@ -240,7 +259,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                   </div>
                 ) : (
                   <div className="cannot-mine-note">
-                    {selectedHero.name}为近战大刀突击主力，不负责埋雷，擅长正面斩杀被地雷炸残的敌军！
+                    {selectedHero.name}为近战大刀/朴刀突击猛将，不负责埋雷，擅长正面斩杀被地雷炸残的日伪军！
                   </div>
                 )}
               </div>

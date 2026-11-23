@@ -11,9 +11,23 @@ export type TerrainType =
 
 export type Faction = 'player' | 'enemy' | 'ally';
 
-export type MineType = 'tu_lei' | 'weizhuang_lei' | 'shi_lei';
+export type MineType =
+  | 'tu_lei'
+  | 'weizhuang_lei'
+  | 'shi_lei'
+  | 'tie_lei'
+  | 'xiezi_lei'
+  | 'yinfa_lei';
 
-export type MaterialId = 'clay' | 'stone' | 'wood' | 'nitre' | 'sulfur' | 'charcoal';
+export type MaterialId =
+  | 'clay'
+  | 'stone'
+  | 'wood'
+  | 'nitre'
+  | 'sulfur'
+  | 'charcoal'
+  | 'iron'
+  | 'venom';
 
 export interface MineDefinition {
   id: MineType;
@@ -22,6 +36,9 @@ export interface MineDefinition {
   damage: number;
   splashDamage: number;
   isDecoy?: boolean;
+  poisonTurns?: number;
+  antiSapper?: boolean;
+  unlockStage: number;
   description: string;
   recipe: Partial<Record<MaterialId, number>>;
   color: string;
@@ -52,6 +69,7 @@ export interface Unit {
   unitClass: string; // e.g. 手枪队 / 大刀队 / 双枪队 / 工兵队
   faction: Faction;
   portraitId: string;
+  spriteId?: string;
   x: number;
   y: number;
   hp: number;
@@ -61,16 +79,19 @@ export interface Unit {
   move: number;
   rangeMin: number;
   rangeMax: number;
+  critRate?: number;
   level: number;
   exp: number;
   weaponName: string;
   canLayMines: boolean;
+  canHealAlly?: boolean;
   isSapper?: boolean;
   isBoss?: boolean;
   isCaptive?: boolean; // e.g. Zhu Laozhong before rescue
   acted: boolean;
   moved: boolean;
-  stunnedTurns: number; // e.g. startled by decoy mine
+  stunnedTurns: number; // startled by decoy mine
+  poisonedTurns?: number; // poisoned by scorpion mine
   mines: Record<MineType, number>;
   healItems: number; // 小米
   alive: boolean;
@@ -99,6 +120,7 @@ export interface StageConfig {
   introDialogues: DialogueLine[];
   victoryDialogues: DialogueLine[];
   initialUnits: Unit[];
+  requiredHeroIds?: string[];
   reinforcementTurn?: number;
   reinforcementUnits?: Unit[];
   reinforcementDialogues?: DialogueLine[];
@@ -113,7 +135,7 @@ export interface FloatingEffect {
   x: number;
   y: number;
   text: string;
-  kind: 'damage' | 'mine' | 'heal' | 'info' | 'chain' | 'crit';
+  kind: 'damage' | 'mine' | 'heal' | 'info' | 'chain' | 'crit' | 'poison';
 }
 
 export interface ExplosionFx {
@@ -127,7 +149,7 @@ export interface AttackFx {
   id: string;
   x: number;
   y: number;
-  kind: 'dual_pistol' | 'blade' | 'rifle' | 'mg' | 'slingshot';
+  kind: 'dual_pistol' | 'blade' | 'rifle' | 'mg' | 'slingshot' | 'heavy_cannon';
   isCrit: boolean;
 }
 
@@ -135,4 +157,4 @@ export type ScreenMode = 'title' | 'briefing' | 'battle' | 'camp' | 'demo_comple
 
 export type BattlePhase = 'player' | 'enemy' | 'dialogue' | 'victory' | 'defeat';
 
-export type ActionMode = 'select' | 'move' | 'attack' | 'mine';
+export type ActionMode = 'select' | 'move' | 'attack' | 'mine' | 'heal_ally';

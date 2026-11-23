@@ -134,6 +134,59 @@ button {
   gap: 12px;
 }
 
+.title-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 780px;
+  margin-top: 2px;
+}
+
+.stage-jump-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  background: rgba(18, 22, 30, 0.8);
+  color: #f4ebd8;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.stage-jump-btn:hover {
+  transform: translateY(-2px);
+  border-color: #facc15;
+  background: rgba(45, 36, 20, 0.9);
+}
+
+.stage-jump-btn .sj-code {
+  font-size: 11px;
+  font-weight: 800;
+  color: #facc15;
+}
+
+.stage-jump-btn .sj-name {
+  font-size: 13px;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.stage-jump-btn .sj-sub {
+  font-size: 11px;
+  color: #b7ad9a;
+  line-height: 1.25;
+}
+
+@media (max-width: 720px) {
+  .title-stage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .btn-primary-gold {
   display: inline-flex;
   align-items: center;
@@ -636,6 +689,9 @@ button {
 .mine-tu_lei { background: radial-gradient(circle, #f59e0b, #b45309); }
 .mine-weizhuang_lei { background: radial-gradient(circle, #84cc16, #3f6212); }
 .mine-shi_lei { background: radial-gradient(circle, #ef4444, #991b1b); }
+.mine-tie_lei { background: radial-gradient(circle, #3b82f6, #1d4ed8); }
+.mine-xiezi_lei { background: radial-gradient(circle, #a855f7, #581c87); }
+.mine-yinfa_lei { background: radial-gradient(circle, #fde047, #b45309); color: #1f1605; }
 
 .mine-detected {
   animation: alertPulse 0.8s infinite;
@@ -689,6 +745,25 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.heal-overlay {
+  background: rgba(34, 197, 94, 0.32);
+  border: 2px solid #86efac;
+  animation: pulseAttack 1s infinite;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.heal-target-tag {
+  margin-top: 2px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(22, 163, 74, 0.92);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .mine-target-dot {
@@ -786,7 +861,9 @@ button {
 .boss-badge { background: #b91c1c; }
 .sapper-badge { background: #7c3aed; }
 .captive-badge { background: #d97706; animation: alertPulse 1s infinite; }
+.medic-badge { background: #16a34a; }
 .stun-badge { background: #0284c7; left: 4px; right: auto; }
+.poison-badge { background: #9333ea; left: 4px; right: auto; top: 22px; }
 
 .unit-hud-footer {
   position: absolute;
@@ -896,6 +973,7 @@ button {
 .float-crit { color: #facc15; font-size: 15px; }
 .float-heal { color: #4ade80; }
 .float-info { color: #7dd3fc; }
+.float-poison { color: #d8b4fe; font-size: 15px; }
 
 @keyframes floatUp {
   0% { transform: translate(-50%, 6px) scale(0.85); opacity: 0; }
@@ -1099,6 +1177,36 @@ button {
   background: rgba(234, 88, 12, 0.3);
   border-color: #fb923c;
   color: #ffedd5;
+}
+
+.act-btn.heal-ally-btn {
+  width: 100%;
+  border-color: rgba(74, 222, 128, 0.35);
+  color: #86efac;
+}
+
+.act-btn.heal-ally-btn.active {
+  background: rgba(22, 163, 74, 0.34);
+  border-color: #4ade80;
+  color: #dcfce7;
+}
+
+.fx-kind-heavy_cannon .pistol-spark {
+  width: 34px;
+  height: 34px;
+  background: radial-gradient(circle, #fffbeb 0%, #fb923c 45%, rgba(239, 68, 68, 0) 75%);
+}
+
+.craft-row.craft-locked {
+  opacity: 0.65;
+}
+
+.craft-lock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #9ca3af;
 }
 
 .act-btn:disabled {

@@ -6,9 +6,19 @@ import uZhulaozhong from '../assets/unit-zhulaozhong.png';
 import uZhaohu from '../assets/unit-zhaohu.png';
 import uZhangga from '../assets/unit-zhangga.png';
 import uLixiangyang from '../assets/unit-lixiangyang.png';
+import uShigengxin from '../assets/unit-shigengxin.png';
+import uLangu from '../assets/unit-langu.png';
+import uXiaofei from '../assets/unit-xiaofei.png';
+import uLiuxin from '../assets/unit-liuxin.png';
+import uLishuangsi from '../assets/unit-lishuangsi.png';
+import uZhangchanggeng from '../assets/unit-zhangchanggeng.png';
+import uJiuye from '../assets/unit-jiuye.png';
+import uGaojingtian from '../assets/unit-gaojingtian.png';
+import uMatsui from '../assets/unit-matsui.png';
 import uEnemyOfficer from '../assets/unit-enemy_officer.png';
 import uEnemySapper from '../assets/unit-enemy_sapper.png';
 import uEnemyMg from '../assets/unit-enemy_mg.png';
+import uEnemyMoto from '../assets/unit-enemy_moto.png';
 import uEnemyPuppet from '../assets/unit-enemy_puppet.png';
 import uEnemyRifle from '../assets/unit-enemy_rifle.png';
 
@@ -22,6 +32,7 @@ interface TacticalTileProps {
   isReachable: boolean;
   isAttackRange: boolean;
   isAttackable: boolean;
+  isHealable?: boolean;
   isMineable: boolean;
   isHovered: boolean;
   hasChainLinkRight?: boolean;
@@ -35,20 +46,42 @@ interface TacticalTileProps {
   onHover: () => void;
 }
 
+const SPRITE_MAP: Record<string, string> = {
+  commander: uCommander,
+  zhulaozhong: uZhulaozhong,
+  zhaohu: uZhaohu,
+  zhangga: uZhangga,
+  lixiangyang: uLixiangyang,
+  shigengxin: uShigengxin,
+  langu: uLangu,
+  xiaofei: uXiaofei,
+  liuxin: uLiuxin,
+  lishuangsi: uLishuangsi,
+  zhangchanggeng: uZhangchanggeng,
+  jiuye: uJiuye,
+  gaojingtian: uGaojingtian,
+  matsui: uMatsui,
+  enemy_officer: uEnemyOfficer,
+  enemy_sapper: uEnemySapper,
+  enemy_mg: uEnemyMg,
+  enemy_moto: uEnemyMoto,
+  enemy_puppet: uEnemyPuppet,
+  enemy_rifle: uEnemyRifle,
+};
+
 function getUnitSpriteSrc(unit: Unit): string {
-  if (unit.faction === 'player') {
-    const map: Record<string, string> = {
-      commander: uCommander,
-      zhulaozhong: uZhulaozhong,
-      zhaohu: uZhaohu,
-      zhangga: uZhangga,
-      lixiangyang: uLixiangyang,
-    };
-    return map[unit.portraitId] ?? uCommander;
+  if (unit.spriteId && SPRITE_MAP[unit.spriteId]) {
+    return SPRITE_MAP[unit.spriteId];
   }
+  if (unit.faction === 'player') {
+    return SPRITE_MAP[unit.portraitId] ?? uCommander;
+  }
+  if (unit.portraitId === 'gaojingtian') return uGaojingtian;
+  if (unit.portraitId === 'matsui') return uMatsui;
   if (unit.isBoss) return uEnemyOfficer;
   if (unit.isSapper) return uEnemySapper;
-  if (unit.unitClass === '机枪队') return uEnemyMg;
+  if (unit.unitClass === '机枪队' || unit.unitClass === '重机枪队') return uEnemyMg;
+  if (unit.unitClass === '摩托队') return uEnemyMoto;
   if (unit.portraitId === 'enemy_puppet') return uEnemyPuppet;
   return uEnemyRifle;
 }
@@ -60,6 +93,7 @@ export const TacticalTile: React.FC<TacticalTileProps> = ({
   isReachable,
   isAttackRange,
   isAttackable,
+  isHealable,
   isMineable,
   isHovered,
   hasChainLinkRight,
@@ -78,9 +112,9 @@ export const TacticalTile: React.FC<TacticalTileProps> = ({
         isReachable ? 'tile-reachable' : ''
       } ${isAttackRange ? 'tile-attack-range' : ''} ${
         isAttackable ? 'tile-attackable' : ''
-      } ${isMineable ? 'tile-mineable' : ''} ${
-        isHovered ? 'tile-hovered' : ''
-      }`}
+      } ${isHealable ? 'tile-healable' : ''} ${
+        isMineable ? 'tile-mineable' : ''
+      } ${isHovered ? 'tile-hovered' : ''}`}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
@@ -103,12 +137,17 @@ export const TacticalTile: React.FC<TacticalTileProps> = ({
 
       {/* Action Highlights */}
       {isReachable && <div className="highlight-overlay move-overlay" />}
-      {isAttackRange && !isAttackable && (
+      {isAttackRange && !isAttackable && !isHealable && (
         <div className="highlight-overlay attack-range-overlay" />
       )}
       {isAttackable && (
         <div className="highlight-overlay attack-overlay">
           <span className="attack-target-tag">攻击</span>
+        </div>
+      )}
+      {isHealable && (
+        <div className="highlight-overlay heal-overlay">
+          <span className="heal-target-tag">救护</span>
         </div>
       )}
       {isMineable && (
@@ -117,7 +156,7 @@ export const TacticalTile: React.FC<TacticalTileProps> = ({
         </div>
       )}
 
-      {/* Whole-Body Standing Tactical Unit (整体图) */}
+      {/* Whole-Body Standing Tactical Unit */}
       {unit && unit.alive && (
         <div
           className={`unit-token faction-${unit.faction} ${unit.acted ? 'unit-acted' : ''} ${
@@ -135,7 +174,9 @@ export const TacticalTile: React.FC<TacticalTileProps> = ({
           {unit.isBoss && <span className="unit-badge boss-badge">将</span>}
           {unit.isSapper && <span className="unit-badge sapper-badge">探</span>}
           {unit.isCaptive && <span className="unit-badge captive-badge">救</span>}
+          {unit.canHealAlly && <span className="unit-badge medic-badge">医</span>}
           {unit.stunnedTurns > 0 && <span className="unit-badge stun-badge">惊</span>}
+          {(unit.poisonedTurns ?? 0) > 0 && <span className="unit-badge poison-badge">毒</span>}
 
           <div className="unit-hud-footer">
             <div className="unit-nameplate">{unit.name}</div>
@@ -182,9 +223,10 @@ export const TacticalTile: React.FC<TacticalTileProps> = ({
               <span className="pistol-spark s2" />
             </>
           )}
-          {(afx.kind === 'rifle' || afx.kind === 'mg' || afx.kind === 'slingshot') && (
-            <span className="pistol-spark s1" />
-          )}
+          {(afx.kind === 'rifle' ||
+            afx.kind === 'mg' ||
+            afx.kind === 'slingshot' ||
+            afx.kind === 'heavy_cannon') && <span className="pistol-spark s1" />}
           {afx.isCrit && (
             <div className="crit-starburst">
               <div className="crit-ring" />

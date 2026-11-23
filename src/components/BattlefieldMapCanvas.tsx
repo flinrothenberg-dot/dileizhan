@@ -207,25 +207,51 @@ export const BattlefieldMapCanvas: React.FC<BattlefieldMapCanvasProps> = ({
       }
     }
 
-    // 4. River Water & Stone Bridges
+    // 4. Shore-Aware River / Baiyangdian Water & Bridges
+    const isWaterTile = (t: TerrainType | null) => t === 'water' || t === 'bridge';
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const t = tiles[y][x];
-        if (t !== 'water' && t !== 'bridge') continue;
+        if (!isWaterTile(t)) continue;
         const cx = x * cellSize;
         const cy = y * cellSize;
 
-        // Muddy riverbank border
-        ctx.fillStyle = '#736244';
-        ctx.fillRect(cx - 6, cy, cellSize + 12, cellSize);
+        const wLeft = isWaterTile(at(x - 1, y));
+        const wRight = isWaterTile(at(x + 1, y));
+        const wTop = isWaterTile(at(x, y - 1));
+        const wBottom = isWaterTile(at(x, y + 1));
 
-        // Deep river gradient
-        const wg = ctx.createLinearGradient(cx, cy, cx + cellSize, cy);
+        // Shore mud borders only against dry land
+        ctx.fillStyle = '#736244';
+        ctx.fillRect(cx, cy, cellSize, cellSize);
+
+        const padL = wLeft ? 0 : 7;
+        const padR = wRight ? 0 : 7;
+        const padT = wTop ? 0 : 7;
+        const padB = wBottom ? 0 : 7;
+
+        const wg = ctx.createLinearGradient(cx, cy, cx + cellSize, cy + cellSize);
         wg.addColorStop(0, '#2a6882');
         wg.addColorStop(0.5, '#1d546e');
-        wg.addColorStop(1, '#2b6b85');
+        wg.addColorStop(1, '#26637d');
         ctx.fillStyle = wg;
-        ctx.fillRect(cx + 6, cy, cellSize - 12, cellSize);
+        ctx.fillRect(cx + padL, cy + padT, cellSize - padL - padR, cellSize - padT - padB);
+
+        // Reed tufts along shoreline corners
+        if (!wLeft || !wRight) {
+          ctx.strokeStyle = 'rgba(134, 179, 86, 0.52)';
+          ctx.lineWidth = 2;
+          const rx = !wLeft ? cx + 10 : cx + cellSize - 10;
+          for (let k = 0; k < 3; k++) {
+            const ry = cy + 28 + k * 34;
+            ctx.beginPath();
+            ctx.moveTo(rx, ry + 10);
+            ctx.lineTo(rx - 4, ry - 8);
+            ctx.moveTo(rx, ry + 10);
+            ctx.lineTo(rx + 4, ry - 7);
+            ctx.stroke();
+          }
+        }
 
         // Water ripples
         ctx.strokeStyle = 'rgba(186, 230, 253, 0.24)';
@@ -240,19 +266,16 @@ export const BattlefieldMapCanvas: React.FC<BattlefieldMapCanvasProps> = ({
         }
 
         if (t === 'bridge') {
-          // Cast shadow on water
           ctx.fillStyle = 'rgba(8, 22, 34, 0.45)';
-          ctx.fillRect(cx - 4, cy + 18, cellSize + 8, cellSize - 16);
+          ctx.fillRect(cx - 2, cy + 18, cellSize + 4, cellSize - 16);
 
-          // Stone bridge deck
           const bg = ctx.createLinearGradient(cx, cy + 12, cx, cy + cellSize - 12);
           bg.addColorStop(0, '#c7baa2');
           bg.addColorStop(0.5, '#b2a287');
           bg.addColorStop(1, '#8c7d65');
           ctx.fillStyle = bg;
-          ctx.fillRect(cx - 8, cy + 14, cellSize + 16, cellSize - 28);
+          ctx.fillRect(cx - 4, cy + 14, cellSize + 8, cellSize - 28);
 
-          // Stone slab plank joints
           ctx.strokeStyle = 'rgba(54, 46, 36, 0.45)';
           ctx.lineWidth = 2;
           for (let sx = 0; sx <= cellSize; sx += 22) {
@@ -262,14 +285,13 @@ export const BattlefieldMapCanvas: React.FC<BattlefieldMapCanvasProps> = ({
             ctx.stroke();
           }
 
-          // Top & bottom stone parapets
           ctx.fillStyle = '#dcd2be';
           ctx.strokeStyle = '#4a4134';
           ctx.lineWidth = 2.5;
-          ctx.fillRect(cx - 8, cy + 10, cellSize + 16, 14);
-          ctx.strokeRect(cx - 8, cy + 10, cellSize + 16, 14);
-          ctx.fillRect(cx - 8, cy + cellSize - 24, cellSize + 16, 14);
-          ctx.strokeRect(cx - 8, cy + cellSize - 24, cellSize + 16, 14);
+          ctx.fillRect(cx - 4, cy + 10, cellSize + 8, 14);
+          ctx.strokeRect(cx - 4, cy + 10, cellSize + 8, 14);
+          ctx.fillRect(cx - 4, cy + cellSize - 24, cellSize + 8, 14);
+          ctx.strokeRect(cx - 4, cy + cellSize - 24, cellSize + 8, 14);
         }
       }
     }

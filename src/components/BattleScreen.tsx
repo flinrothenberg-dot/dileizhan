@@ -15,15 +15,17 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { MINES, TERRAIN_META } from '../data/mines';
+import { ALL_MINE_TYPES, MINES, TERRAIN_META } from '../data/mines';
 import {
   computeAttackDamage,
   findChainMines,
   getAttackableTargets,
   getAttackKind,
   getAttackRangeTiles,
+  getHealableAllies,
   getMineableTiles,
   getReachableTiles,
+  getTotalMines,
   GridPoint,
   keyOf,
   manhattan,
@@ -51,6 +53,7 @@ import { TacticalTile } from './TacticalTile';
 interface BattleScreenProps {
   stage: StageConfig;
   carryOverRoster?: Unit[];
+  hasNextStage: boolean;
   onVictory: (survivingHeroes: Unit[]) => void;
   onRestart: () => void;
 }
@@ -60,33 +63,36 @@ const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
 let fxSeq = 1;
 const nextId = (prefix: string) => `${prefix}_${fxSeq++}`;
 
+function hydrateHeroUnit(u: Unit, carryOverRoster?: Unit[]): Unit {
+  if (u.faction === 'player' && carryOverRoster) {
+    const saved = carryOverRoster.find((s) => s.id === u.id);
+    if (saved) {
+      return {
+        ...u,
+        level: saved.level,
+        exp: saved.exp,
+        maxHp: saved.maxHp,
+        hp: saved.maxHp,
+        atk: saved.atk,
+        def: saved.def,
+        mines: { ...u.mines, ...saved.mines },
+        healItems: Math.max(u.healItems, saved.healItems),
+      };
+    }
+  }
+  return { ...u, mines: { ...u.mines } };
+}
+
 export const BattleScreen: React.FC<BattleScreenProps> = ({
   stage,
   carryOverRoster,
+  hasNextStage,
   onVictory,
   onRestart,
 }) => {
   // Initialize units (merging carry-over stats/mines for Stage 2+)
   const [units, setUnits] = useState<Unit[]>(() =>
-    stage.initialUnits.map((u) => {
-      if (u.faction === 'player' && carryOverRoster) {
-        const saved = carryOverRoster.find((s) => s.id === u.id);
-        if (saved) {
-          return {
-            ...u,
-            level: saved.level,
-            exp: saved.exp,
-            maxHp: saved.maxHp,
-            hp: saved.maxHp,
-            atk: saved.atk,
-            def: saved.def,
-            mines: { ...saved.mines },
-            healItems: Math.max(1, saved.healItems),
-          };
-        }
-      }
-      return { ...u, mines: { ...u.mines } };
-    })
+    stage.initialUnits.map((u) => hydrateHeroUnit(u, carryOverRoster))
   );
 
   const [mines, setMines] = useState<PlacedMine[]>([]);
@@ -110,6 +116,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const [muted, setMuted] = useState(sound.muted);
   const [rescued, setRescued] = useState(false);
   const [reinforcementsSpawned, setReinforcementsSpawned] = useState(false);
+  const reinforcementsSpawnedRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [preMovePos, setPreMovePos] = useState<{ unitId: string; x: number; y: number } | null>(null);
   const [detailUnitId, setDetailUnitId] = useState<string | null>(null);
@@ -154,6 +161,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       else if (kind === 'blade') sound.playBladeSlash();
       else if (kind === 'mg') sound.playMachineGun();
       else if (kind === 'slingshot') sound.playSlingshot();
+      else if (kind === 'heavy_cannon') sound.playCannonShot();
       else sound.playRifleShot();
 
       if (isCrit) {
@@ -206,7 +214,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       busy ||
       !selectedUnit ||
       selectedUnit.isCaptive ||
-      actionMode === 'mine'
+      actionMode === 'mine' ||
+      actionMode === 'heal_ally'
     ) {
       return new Set<string>();
     }
@@ -220,6 +229,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return new Set<string>();
   }, [phase, busy, selectedUnit, stage.tiles, actionMode]);
 
+  const healableAllies = useMemo(() => {
+    if (
+      phase !== 'player' ||
+      busy ||
+      !selectedUnit ||
+      selectedUnit.faction !== 'player' ||
+      selectedUnit.acted ||
+      !selectedUnit.canHealAlly
+    ) {
+      return [];
+    }
+    return getHealableAllies(selectedUnit, units);
+  }, [phase, busy, selectedUnit, units]);
+
+  const healableTargetSet = useMemo(
+    () => new Set(healableAllies.map((t) => keyOf(t.x, t.y))),
+    [healableAllies]
+  );
+
   const attackTargets = useMemo(() => {
     if (
       phase !== 'player' ||
@@ -228,7 +256,8 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       selectedUnit.faction !== 'player' ||
       selectedUnit.acted ||
       selectedUnit.isCaptive ||
-      actionMode === 'mine'
+      actionMode === 'mine' ||
+      actionMode === 'heal_ally'
     ) {
       return [];
     }
@@ -255,26 +284,24 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return getMineableTiles(selectedUnit, stage.tiles, units, mines);
   }, [phase, busy, selectedUnit, stage.tiles, units, mines, actionMode]);
 
-  // Check victory / defeat conditions
+  // Check victory / defeat conditions (safely ignores heroes scheduled as future reinforcements)
   const checkBattleEnd = useCallback(
     (curUnits: Unit[]): 'victory' | 'defeat' | null => {
-      const commanderAlive = curUnits.some((u) => u.id === 'commander' && u.alive);
-      if (!commanderAlive) return 'defeat';
-
-      if (stage.id === 1) {
-        const zlzAlive = curUnits.some((u) => u.id === 'zhulaozhong' && u.alive);
-        if (!zlzAlive) return 'defeat';
-      }
-      if (stage.id === 2) {
-        const lxyAlive = curUnits.some((u) => u.id === 'lixiangyang' && u.alive);
-        if (!lxyAlive) return 'defeat';
+      const reqIds = stage.requiredHeroIds ?? ['commander'];
+      for (const reqId of reqIds) {
+        const scheduledLater =
+          !reinforcementsSpawnedRef.current &&
+          stage.reinforcementUnits?.some((ru) => ru.id === reqId);
+        if (scheduledLater) continue;
+        const alive = curUnits.some((u) => u.id === reqId && u.alive);
+        if (!alive) return 'defeat';
       }
 
       const enemiesLeft = curUnits.filter((u) => u.faction === 'enemy' && u.alive).length;
       if (enemiesLeft === 0) return 'victory';
       return null;
     },
-    [stage.id]
+    [stage.reinforcementUnits, stage.requiredHeroIds]
   );
 
   const awardExp = useCallback(
@@ -346,9 +373,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           prev.map((item) => (item.id === m.id ? { ...item, triggered: true } : item))
         );
 
-        // Apply direct + splash damage to enemies
+        // Apply direct + splash damage (+ scorpion poison if applicable)
         const directDmg = mDef.damage;
         const splashDmg = mDef.splashDamage > 0 ? mDef.splashDamage : chain.length >= 2 ? 22 : 0;
+        const poisonTurns = mDef.poisonTurns ?? 0;
 
         const nextUnits = unitsRef.current.map((u) => {
           if (!u.alive || u.faction !== 'enemy') return u;
@@ -356,13 +384,26 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           if (dist === 0) {
             const dmg = directDmg;
             const newHp = Math.max(0, u.hp - dmg);
-            spawnFloat(u.x, u.y, `踩雷 -${dmg}`, i > 0 ? 'chain' : 'mine');
+            const nextPoison =
+              poisonTurns > 0 && newHp > 0
+                ? Math.max(u.poisonedTurns ?? 0, poisonTurns)
+                : u.poisonedTurns ?? 0;
+            spawnFloat(
+              u.x,
+              u.y,
+              poisonTurns > 0 ? `蝎毒爆 -${dmg}` : `踩雷 -${dmg}`,
+              poisonTurns > 0 ? 'poison' : i > 0 ? 'chain' : 'mine'
+            );
             addLog(
               `💥 ${u.name} 踩中【${mDef.name}】受到 ${dmg} 点爆炸伤害${
-                newHp === 0 ? '，当场被炸飞！' : '！'
+                newHp === 0
+                  ? '，当场被炸飞！'
+                  : poisonTurns > 0
+                  ? '，并身中蝎毒持续掉血！'
+                  : '！'
               }`
             );
-            return { ...u, hp: newHp, alive: newHp > 0 };
+            return { ...u, hp: newHp, alive: newHp > 0, poisonedTurns: nextPoison };
           } else if (dist === 1 && splashDmg > 0) {
             const newHp = Math.max(0, u.hp - splashDmg);
             spawnFloat(u.x, u.y, `溅射 -${splashDmg}`, 'mine');
@@ -483,7 +524,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         return;
       }
       if (phase !== 'player' || busy) return;
-      if (actionMode === 'mine') {
+      if (actionMode === 'mine' || actionMode === 'heal_ally') {
         sound.playClick();
         setActionMode(preMovePos ? 'attack' : 'select');
       } else if (preMovePos) {
@@ -626,6 +667,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setSelectedUnitId(null);
   };
 
+  // Langu field-medic healing an injured teammate
+  const handleHealAlly = (medic: Unit, ally: Unit) => {
+    sound.playHeal();
+    const healAmt = Math.min(48, ally.maxHp - ally.hp);
+    spawnFloat(ally.x, ally.y, `战地救护 +${healAmt}`, 'heal');
+    addLog(`✚ ${medic.name} 为 ${ally.name} 施展战地救护，恢复 ${healAmt} 点生命！`);
+    const updated = unitsRef.current.map((u) => {
+      if (u.id === ally.id) return { ...u, hp: u.hp + healAmt };
+      if (u.id === medic.id) return { ...u, acted: true, moved: true };
+      return u;
+    });
+    unitsRef.current = updated;
+    setUnits(updated);
+    awardExp(medic.id, 25);
+    setPreMovePos(null);
+    setActionMode('select');
+    setSelectedUnitId(null);
+  };
+
   const handleWaitUnit = (unit: Unit) => {
     sound.playClick();
     setUnits((prev) =>
@@ -650,8 +710,44 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       .map((u) => u.id);
 
     for (const eid of enemyIds) {
-      const enemy = unitsRef.current.find((u) => u.id === eid && u.alive);
+      let enemy = unitsRef.current.find((u) => u.id === eid && u.alive);
       if (!enemy) continue;
+
+      // Scorpion mine poison tick before action
+      if ((enemy.poisonedTurns ?? 0) > 0) {
+        const pDmg = 18;
+        const afterHp = Math.max(0, enemy.hp - pDmg);
+        spawnFloat(enemy.x, enemy.y, `蝎毒 -${pDmg}`, 'poison');
+        addLog(
+          `🦂 ${enemy.name} 蝎子雷剧毒发作失去 ${pDmg} 点生命${
+            afterHp === 0 ? '，毒发身亡！' : '！'
+          }`
+        );
+        const poisonedUnits = unitsRef.current.map((u) =>
+          u.id === eid
+            ? {
+                ...u,
+                hp: afterHp,
+                alive: afterHp > 0,
+                poisonedTurns: Math.max(0, (u.poisonedTurns ?? 1) - 1),
+              }
+            : u
+        );
+        unitsRef.current = poisonedUnits;
+        setUnits(poisonedUnits);
+        await delay(300);
+        if (afterHp === 0) {
+          if (checkBattleEnd(unitsRef.current) === 'victory') {
+            setBusy(false);
+            sound.playVictory();
+            openDialogue(stage.victoryDialogues, 'victory');
+            return;
+          }
+          continue;
+        }
+        enemy = unitsRef.current.find((u) => u.id === eid && u.alive);
+        if (!enemy) continue;
+      }
 
       // Check stun from decoy mine
       if (enemy.stunnedTurns > 0) {
@@ -684,11 +780,23 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           await delay(360);
         }
 
-        // If adjacent to a detected mine, defuse it!
+        // If adjacent to a detected mine, try to defuse — triggers anti-sapper 【引发雷】!
         const adjMine = minesRef.current.find(
           (m) => !m.triggered && m.detected && manhattan(enemy, m) === 1
         );
         if (adjMine) {
+          if (MINES[adjMine.type].antiSapper) {
+            addLog(`💥 ${enemy.name} 试图拆除九爷的【引发雷】，不料当场触发防排机关引爆！`);
+            await detonateMineAt(adjMine, enemy.id);
+            if (checkBattleEnd(unitsRef.current) === 'victory') {
+              setBusy(false);
+              sound.playVictory();
+              openDialogue(stage.victoryDialogues, 'victory');
+              return;
+            }
+            await delay(240);
+            continue;
+          }
           sound.playClick();
           const nextMines = minesRef.current.map((m) =>
             m.id === adjMine.id ? { ...m, triggered: true } : m
@@ -858,17 +966,17 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       moved: u.isCaptive ? true : false,
     }));
 
-    // Check Stage Reinforcements (e.g. Zhao Hu & Zhang Ga on Turn 2 of Stage 1)
+    // Check Stage Reinforcements
     if (
       stage.reinforcementTurn === nextTurn &&
       !reinforcementsSpawned &&
       stage.reinforcementUnits
     ) {
       setReinforcementsSpawned(true);
-      const extras = stage.reinforcementUnits.map((ru) => ({
-        ...ru,
-        mines: { ...ru.mines },
-      }));
+      reinforcementsSpawnedRef.current = true;
+      const extras = stage.reinforcementUnits.map((ru) =>
+        hydrateHeroUnit(ru, carryOverRoster)
+      );
       refreshed = [...refreshed, ...extras];
       unitsRef.current = refreshed;
       setUnits(refreshed);
@@ -887,6 +995,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     addLog(`=== 第 ${nextTurn} 回合 · 我军行动 ===`);
   }, [
     addLog,
+    carryOverRoster,
     checkBattleEnd,
     detonateMineAt,
     openDialogue,
@@ -928,6 +1037,18 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       return;
     }
 
+    // 1b. Medic ally heal mode
+    if (
+      actionMode === 'heal_ally' &&
+      selectedUnit &&
+      healableTargetSet.has(k) &&
+      clickedUnit &&
+      clickedUnit.faction === 'player'
+    ) {
+      handleHealAlly(selectedUnit, clickedUnit);
+      return;
+    }
+
     // 2. Attack an enemy in range
     if (selectedUnit && attackTargetSet.has(k) && clickedUnit && clickedUnit.faction === 'enemy') {
       handleAttack(selectedUnit, clickedUnit);
@@ -962,9 +1083,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       setActionMode('select');
       // Auto-pick first available mine type for this unit
       if (clickedUnit.canLayMines) {
-        const firstAvail = (['tu_lei', 'shi_lei', 'weizhuang_lei'] as MineType[]).find(
-          (m) => (clickedUnit.mines[m] ?? 0) > 0
-        );
+        const firstAvail = ALL_MINE_TYPES.find((m) => (clickedUnit.mines[m] ?? 0) > 0);
         if (firstAvail) setSelectedMineType(firstAvail);
       }
       return;
@@ -981,7 +1100,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const handleTileContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
     if (phase !== 'player' || busy) return;
-    if (actionMode === 'mine') {
+    if (actionMode === 'mine' || actionMode === 'heal_ally') {
       sound.playClick();
       setActionMode(preMovePos ? 'attack' : 'select');
     } else if (preMovePos) {
@@ -1020,11 +1139,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   const hoveredTerrain = TERRAIN_META[stage.tiles[hoveredTile.y]?.[hoveredTile.x] ?? 'grass'];
 
   useEffect(() => {
-    // Select commander automatically once intro finishes
+    // Select first active player hero automatically once intro finishes
     if (phase === 'player' && !selectedUnitId && turn === 1) {
-      setSelectedUnitId('commander');
+      const firstHero = units.find((u) => u.faction === 'player' && u.alive && !u.isCaptive);
+      if (firstHero) {
+        setSelectedUnitId(firstHero.id);
+        const firstMine = ALL_MINE_TYPES.find((m) => (firstHero.mines[m] ?? 0) > 0);
+        if (firstMine) setSelectedMineType(firstMine);
+      }
     }
-  }, [phase, selectedUnitId, turn]);
+  }, [phase, selectedUnitId, turn, units]);
 
   return (
     <div className="battle-screen">
@@ -1127,6 +1251,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     isReachable={reachData.tiles.has(k)}
                     isAttackRange={attackRangeSet.has(k)}
                     isAttackable={attackTargetSet.has(k)}
+                    isHealable={actionMode === 'heal_ally' && healableTargetSet.has(k)}
                     isMineable={mineableSet.has(k)}
                     isHovered={hoveredTile.x === x && hoveredTile.y === y}
                     hasChainLinkRight={hasChainLinkRight}
@@ -1273,18 +1398,20 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                       {selectedUnit.moved && selectedUnit.canLayMines && (
                         <button
                           className={`act-btn mine-btn ${actionMode === 'mine' ? 'active' : ''}`}
-                          disabled={
-                            (selectedUnit.mines.tu_lei ?? 0) +
-                              (selectedUnit.mines.weizhuang_lei ?? 0) +
-                              (selectedUnit.mines.shi_lei ?? 0) <=
-                            0
-                          }
+                          disabled={getTotalMines(selectedUnit) <= 0}
                           onClick={() => {
                             sound.playClick();
-                            setActionMode(actionMode === 'mine' ? 'attack' : 'mine');
+                            const nextMode = actionMode === 'mine' ? 'attack' : 'mine';
+                            if (nextMode === 'mine') {
+                              const firstAvail = ALL_MINE_TYPES.find(
+                                (m) => (selectedUnit.mines[m] ?? 0) > 0
+                              );
+                              if (firstAvail) setSelectedMineType(firstAvail);
+                            }
+                            setActionMode(nextMode);
                           }}
                         >
-                          <Bomb size={15} /> 埋设地雷
+                          <Bomb size={15} /> 埋设地雷 ({getTotalMines(selectedUnit)})
                         </button>
                       )}
                     </div>
@@ -1292,22 +1419,40 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                     {!selectedUnit.moved && selectedUnit.canLayMines && (
                       <button
                         className={`act-btn mine-btn ${actionMode === 'mine' ? 'active' : ''}`}
-                        disabled={
-                          (selectedUnit.mines.tu_lei ?? 0) +
-                            (selectedUnit.mines.weizhuang_lei ?? 0) +
-                            (selectedUnit.mines.shi_lei ?? 0) <=
-                          0
-                        }
+                        disabled={getTotalMines(selectedUnit) <= 0}
                         onClick={() => {
                           sound.playClick();
-                          setActionMode(actionMode === 'mine' ? 'select' : 'mine');
+                          const nextMode = actionMode === 'mine' ? 'select' : 'mine';
+                          if (nextMode === 'mine') {
+                            const firstAvail = ALL_MINE_TYPES.find(
+                              (m) => (selectedUnit.mines[m] ?? 0) > 0
+                            );
+                            if (firstAvail) setSelectedMineType(firstAvail);
+                          }
+                          setActionMode(nextMode);
                         }}
                       >
-                        <Bomb size={15} /> 埋设地雷（剩余{' '}
-                        {(selectedUnit.mines.tu_lei ?? 0) +
-                          (selectedUnit.mines.weizhuang_lei ?? 0) +
-                          (selectedUnit.mines.shi_lei ?? 0)}{' '}
-                        颗）
+                        <Bomb size={15} /> 埋设地雷（剩余 {getTotalMines(selectedUnit)} 颗）
+                      </button>
+                    )}
+
+                    {/* Langu Field Medic Ally Healing */}
+                    {selectedUnit.canHealAlly && (
+                      <button
+                        className={`act-btn heal-ally-btn ${actionMode === 'heal_ally' ? 'active' : ''}`}
+                        disabled={healableAllies.length === 0}
+                        onClick={() => {
+                          sound.playClick();
+                          setActionMode(
+                            actionMode === 'heal_ally'
+                              ? preMovePos
+                                ? 'attack'
+                                : 'select'
+                              : 'heal_ally'
+                          );
+                        }}
+                      >
+                        <Heart size={15} /> 战地救护队友 ({healableAllies.length})
                       </button>
                     )}
 
@@ -1316,7 +1461,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                       <div className="mine-picker">
                         <div className="mine-picker-label">选择地雷种类（点击高亮格埋设）：</div>
                         <div className="mine-picker-btns">
-                          {(['tu_lei', 'weizhuang_lei', 'shi_lei'] as MineType[]).map((mt) => {
+                          {ALL_MINE_TYPES.filter(
+                            (mt) =>
+                              (selectedUnit.mines[mt] ?? 0) > 0 ||
+                              mt === 'tu_lei' ||
+                              mt === 'weizhuang_lei' ||
+                              mt === 'shi_lei'
+                          ).map((mt) => {
                             const cnt = selectedUnit.mines[mt] ?? 0;
                             return (
                               <button
@@ -1447,7 +1598,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
                 onVictory(heroes);
               }}
             >
-              {stage.id === 1 ? '返回根据地 · 进入地雷工坊' : '凯旋归来 · 查看试玩总结'}
+              {hasNextStage ? '凯旋整备 · 进入地雷工坊' : '前五关全捷 · 查看最终战报'}
             </button>
           </div>
         </div>

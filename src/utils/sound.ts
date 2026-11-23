@@ -222,6 +222,24 @@ class SoundEngine {
     osc.stop(now + 0.14);
   }
 
+  // 老火铳 / 抬枪（九爷重轰击）
+  public playCannonShot() {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    this.playSingleCrack(ctx, now, 340, 0.46, 0.28);
+    const sub = ctx.createOscillator();
+    const sg = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(110, now);
+    sub.frequency.exponentialRampToValueAtTime(32, now + 0.34);
+    sg.gain.setValueAtTime(0.42, now);
+    sg.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    sub.connect(sg).connect(ctx.destination);
+    sub.start(now);
+    sub.stop(now + 0.36);
+  }
+
   // 最高攻击 / 暴击震击音效
   public playMaxCritImpact() {
     const ctx = this.ensureContext();

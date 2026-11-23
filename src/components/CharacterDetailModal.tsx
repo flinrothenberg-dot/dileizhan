@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { Bomb, Crosshair, Footprints, Heart, Shield, Sparkles, Sword, X } from 'lucide-react';
-import { MINES, TERRAIN_META } from '../data/mines';
-import { MineType, TerrainType, Unit } from '../types/game';
+import { ALL_MINE_TYPES, MINES, TERRAIN_META } from '../data/mines';
+import { getUnitCritRate } from '../engine/tactics';
+import { TerrainType, Unit } from '../types/game';
 import { CharacterPortrait } from './CharacterPortrait';
 
 interface CharacterDetailModalProps {
@@ -24,15 +25,7 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
   }, [onClose]);
 
   const terrainMeta = TERRAIN_META[terrain];
-  const critRate =
-    unit.id === 'lixiangyang'
-      ? 38
-      : unit.id === 'zhulaozhong'
-      ? 28
-      : unit.id === 'commander'
-      ? 25
-      : 15;
-  const mineTypes: MineType[] = ['tu_lei', 'weizhuang_lei', 'shi_lei'];
+  const critRate = getUnitCritRate(unit);
 
   return (
     <div className="detail-backdrop" onClick={onClose}>
@@ -144,9 +137,15 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
             </div>
           )}
           <div className="equip-row">
-            <span className="equip-label">埋雷能力</span>
+            <span className="equip-label">战场专长</span>
             <strong className="equip-value">
-              {unit.canLayMines ? '可埋设地雷' : unit.isSapper ? '敌军探雷工兵（自动侦测 2 格）' : '无'}
+              {unit.canHealAlly
+                ? '战地救护（2格内为队友疗伤）'
+                : unit.canLayMines
+                ? '可埋设地雷阵'
+                : unit.isSapper
+                ? '敌军探雷工兵（自动侦测2格）'
+                : '正面突击'}
             </strong>
           </div>
         </div>
@@ -154,7 +153,7 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
         {/* Carried Mines */}
         {unit.canLayMines && (
           <div className="detail-mines-row">
-            {mineTypes.map((mt) => (
+            {ALL_MINE_TYPES.filter((mt) => (unit.mines[mt] ?? 0) > 0 || mt === 'tu_lei' || mt === 'weizhuang_lei' || mt === 'shi_lei').map((mt) => (
               <div key={mt} className="detail-mine-pill">
                 <Bomb size={13} style={{ color: MINES[mt].badgeColor }} />
                 <span>{MINES[mt].name}</span>
@@ -165,7 +164,7 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
         )}
 
         <div className="detail-footer-tip">
-          提示：战斗中双击任意角色或点击头像即可随时打开个人属性面板；移动后未行动前可按右键或点击「返回原位」撤销移动。
+          提示：战斗中双击任意角色或点击头像即可打开属性面板；移动后未行动前可按右键或点击「返回原位」撤销移动。
         </div>
       </div>
     </div>

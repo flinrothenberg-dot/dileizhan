@@ -1,4 +1,4 @@
-import { TERRAIN_META } from '../data/mines';
+import { ALL_MINE_TYPES, TERRAIN_META } from '../data/mines';
 import { AttackFx, PlacedMine, TerrainType, Unit } from '../types/game';
 
 export interface GridPoint {
@@ -12,6 +12,21 @@ export function manhattan(a: GridPoint, b: GridPoint): number {
 
 export function keyOf(x: number, y: number): string {
   return `${x},${y}`;
+}
+
+export function getTotalMines(unit: Unit): number {
+  return ALL_MINE_TYPES.reduce((sum, mt) => sum + (unit.mines[mt] ?? 0), 0);
+}
+
+export function getUnitCritRate(unit: Unit): number {
+  if (typeof unit.critRate === 'number') return unit.critRate;
+  if (unit.id === 'xiaofei') return 42;
+  if (unit.id === 'lixiangyang') return 38;
+  if (unit.id === 'jiuye') return 36;
+  if (unit.id === 'shigengxin') return 30;
+  if (unit.id === 'zhulaozhong' || unit.id === 'lishuangsi') return 28;
+  if (unit.id === 'commander') return 26;
+  return 16;
 }
 
 export interface ReachableResult {
@@ -111,6 +126,18 @@ export function getAttackableTargets(unit: Unit, units: Unit[]): Unit[] {
   );
 }
 
+export function getHealableAllies(unit: Unit, units: Unit[]): Unit[] {
+  if (!unit.canHealAlly) return [];
+  return units.filter(
+    (other) =>
+      other.alive &&
+      !other.isCaptive &&
+      other.faction === unit.faction &&
+      other.hp < other.maxHp &&
+      manhattan(unit, other) <= 2
+  );
+}
+
 export function getAttackRangeTiles(unit: Unit, tiles: TerrainType[][]): Set<string> {
   const height = tiles.length;
   const width = tiles[0].length;
@@ -158,7 +185,10 @@ export function getMineableTiles(
 }
 
 export function getAttackKind(unit: Unit, distance: number): AttackFx['kind'] {
-  if (unit.weaponName.includes('双') || unit.id === 'commander' || unit.id === 'lixiangyang') {
+  if (unit.weaponName.includes('抬枪') || unit.weaponName.includes('火铳')) {
+    return 'heavy_cannon';
+  }
+  if (unit.weaponName.includes('双') || unit.id === 'commander' || unit.id === 'lixiangyang' || unit.id === 'lishuangsi') {
     return 'dual_pistol';
   }
   if (unit.weaponName.includes('大刀') || (unit.weaponName.includes('刀') && distance === 1)) {
@@ -179,14 +209,7 @@ export function computeAttackDamage(
   defenderTerrain: TerrainType
 ): { damage: number; isCrit: boolean } {
   const defBonus = TERRAIN_META[defenderTerrain].defBonus;
-  const critChance =
-    attacker.id === 'lixiangyang'
-      ? 0.38
-      : attacker.id === 'commander'
-      ? 0.25
-      : attacker.id === 'zhulaozhong'
-      ? 0.28
-      : 0.15;
+  const critChance = getUnitCritRate(attacker) / 100;
   const isCrit = Math.random() < critChance;
   const base = Math.max(8, attacker.atk - Math.floor((defender.def + defBonus) * 0.65));
   const variance = Math.floor(Math.random() * 5) - 2;
