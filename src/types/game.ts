@@ -29,6 +29,16 @@ export type MaterialId =
   | 'iron'
   | 'venom';
 
+export type PromoBookId =
+  | 'wugong_xinfa'
+  | 'yezhan_xinfa'
+  | 'youji_xinfa'
+  | 'qiangxie_jichu'
+  | 'qiangxie_jingdian'
+  | 'huoqi_jichu'
+  | 'hongjin'
+  | 'junqi';
+
 export interface MineDefinition {
   id: MineType;
   name: string;
@@ -58,6 +68,7 @@ export interface PlacedMine {
   x: number;
   y: number;
   owner: Faction;
+  placerId?: string;
   detected: boolean; // true if spotted by enemy sapper
   triggered?: boolean;
 }
@@ -66,7 +77,7 @@ export interface Unit {
   id: string;
   name: string;
   title: string; // e.g. 游击大队长 / 民兵造雷手 / 日军工兵队
-  unitClass: string; // e.g. 手枪队 / 大刀队 / 双枪队 / 工兵队
+  unitClass: string; // e.g. 手枪队 / 大刀队 / 双枪队 / 武术队
   faction: Faction;
   portraitId: string;
   spriteId?: string;
@@ -127,6 +138,7 @@ export interface StageConfig {
   rescueUnitId?: string;
   rescueDialogues?: DialogueLine[];
   rewardMaterials: Partial<Record<MaterialId, number>>;
+  rewardPromoBooks?: Partial<Record<PromoBookId, number>>;
   unlockedMines?: MineType[];
 }
 

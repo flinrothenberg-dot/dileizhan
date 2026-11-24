@@ -21,6 +21,12 @@ import uEnemyMg from '../assets/unit-enemy_mg.png';
 import uEnemyMoto from '../assets/unit-enemy_moto.png';
 import uEnemyPuppet from '../assets/unit-enemy_puppet.png';
 import uEnemyRifle from '../assets/unit-enemy_rifle.png';
+import uPromoWushudui from '../assets/unit-promo-wushudui.png';
+import uPromoYezhandui from '../assets/unit-promo-yezhandui.png';
+import uPromoTongzijun from '../assets/unit-promo-tongzijun.png';
+import uPromoNiangzijun from '../assets/unit-promo-niangzijun.png';
+import uPromoFeihudui from '../assets/unit-promo-feihudui.png';
+import uPromoDapaodui from '../assets/unit-promo-dapaodui.png';
 
 interface TacticalTileProps {
   x: number;
@@ -46,7 +52,7 @@ interface TacticalTileProps {
   onHover: () => void;
 }
 
-const SPRITE_MAP: Record<string, string> = {
+export const UNIT_SPRITE_MAP: Record<string, string> = {
   commander: uCommander,
   zhulaozhong: uZhulaozhong,
   zhaohu: uZhaohu,
@@ -67,14 +73,22 @@ const SPRITE_MAP: Record<string, string> = {
   enemy_moto: uEnemyMoto,
   enemy_puppet: uEnemyPuppet,
   enemy_rifle: uEnemyRifle,
+  promo_shuangqiang: uLixiangyang,
+  promo_chongfeng: uShigengxin,
+  promo_wushudui: uPromoWushudui,
+  promo_yezhandui: uPromoYezhandui,
+  promo_tongzijun: uPromoTongzijun,
+  promo_niangzijun: uPromoNiangzijun,
+  promo_feihudui: uPromoFeihudui,
+  promo_dapaodui: uPromoDapaodui,
 };
 
 function getUnitSpriteSrc(unit: Unit): string {
-  if (unit.spriteId && SPRITE_MAP[unit.spriteId]) {
-    return SPRITE_MAP[unit.spriteId];
+  if (unit.spriteId && UNIT_SPRITE_MAP[unit.spriteId]) {
+    return UNIT_SPRITE_MAP[unit.spriteId];
   }
   if (unit.faction === 'player') {
-    return SPRITE_MAP[unit.portraitId] ?? uCommander;
+    return UNIT_SPRITE_MAP[unit.portraitId] ?? uCommander;
   }
   if (unit.portraitId === 'gaojingtian') return uGaojingtian;
   if (unit.portraitId === 'matsui') return uMatsui;

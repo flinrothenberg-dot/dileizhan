@@ -589,6 +589,7 @@ export const STAGES: StageConfig[] = [
     ],
     reinforcementUnits: [makeHero('zhaohu', 4, 7), makeHero('zhangga', 5, 7)],
     rewardMaterials: { clay: 4, stone: 4, wood: 3, nitre: 4, sulfur: 2, charcoal: 3 },
+    rewardPromoBooks: { wugong_xinfa: 1 },
     unlockedMines: ['tu_lei', 'weizhuang_lei', 'shi_lei'],
   },
 
@@ -786,6 +787,7 @@ export const STAGES: StageConfig[] = [
       }),
     ],
     rewardMaterials: { clay: 5, stone: 5, wood: 4, iron: 3, nitre: 5, sulfur: 4, charcoal: 5 },
+    rewardPromoBooks: { yezhan_xinfa: 1, qiangxie_jichu: 1 },
     unlockedMines: ['tu_lei', 'weizhuang_lei', 'shi_lei'],
   },
 
@@ -1010,6 +1012,7 @@ export const STAGES: StageConfig[] = [
     ],
     reinforcementUnits: [makeHero('shigengxin', 2, 1), makeHero('langu', 1, 2)],
     rewardMaterials: { clay: 4, stone: 5, wood: 3, iron: 6, venom: 3, nitre: 6, sulfur: 4, charcoal: 4 },
+    rewardPromoBooks: { hongjin: 1, junqi: 1 },
     unlockedMines: ['tu_lei', 'weizhuang_lei', 'shi_lei', 'tie_lei'],
   },
 
@@ -1233,6 +1236,7 @@ export const STAGES: StageConfig[] = [
       makeHero('langu', 1, 5),
     ],
     rewardMaterials: { clay: 5, stone: 5, wood: 4, iron: 7, venom: 6, nitre: 7, sulfur: 6, charcoal: 5 },
+    rewardPromoBooks: { youji_xinfa: 1, qiangxie_jingdian: 1, huoqi_jichu: 1 },
     unlockedMines: ['tu_lei', 'weizhuang_lei', 'shi_lei', 'tie_lei', 'xiezi_lei'],
   },
 

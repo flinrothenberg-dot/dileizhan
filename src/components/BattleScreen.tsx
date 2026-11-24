@@ -69,6 +69,13 @@ function hydrateHeroUnit(u: Unit, carryOverRoster?: Unit[]): Unit {
     if (saved) {
       return {
         ...u,
+        unitClass: saved.unitClass,
+        title: saved.title,
+        spriteId: saved.spriteId,
+        weaponName: saved.weaponName,
+        move: saved.move,
+        rangeMax: saved.rangeMax,
+        critRate: saved.critRate,
         level: saved.level,
         exp: saved.exp,
         maxHp: saved.maxHp,
@@ -306,8 +313,9 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
   const awardExp = useCallback(
     (unitId: string, gained: number) => {
-      setUnits((prev) =>
-        prev.map((u) => {
+      if (gained <= 0) return;
+      setUnits((prev) => {
+        const next = prev.map((u) => {
           if (u.id !== unitId || !u.alive) return u;
           let exp = u.exp + gained;
           let level = u.level;
@@ -315,19 +323,25 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           let hp = u.hp;
           let atk = u.atk;
           let def = u.def;
-          if (exp >= 100) {
+          let leveled = false;
+          while (exp >= 100) {
             exp -= 100;
             level += 1;
             maxHp += 12;
             hp = Math.min(maxHp, hp + 18);
             atk += 4;
             def += 2;
+            leveled = true;
+          }
+          if (leveled) {
             spawnFloat(u.x, u.y, `升级 Lv.${level}!`, 'crit');
             addLog(`★ ${u.name} 升至 Lv.${level}！攻防与生命全面提升！`);
           }
           return { ...u, exp, level, maxHp, hp, atk, def };
-        })
-      );
+        });
+        unitsRef.current = next;
+        return next;
+      });
     },
     [addLog, spawnFloat]
   );
@@ -377,6 +391,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         const directDmg = mDef.damage;
         const splashDmg = mDef.splashDamage > 0 ? mDef.splashDamage : chain.length >= 2 ? 22 : 0;
         const poisonTurns = mDef.poisonTurns ?? 0;
+        let mineExpEarned = 0;
 
         const nextUnits = unitsRef.current.map((u) => {
           if (!u.alive || u.faction !== 'enemy') return u;
@@ -384,6 +399,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           if (dist === 0) {
             const dmg = directDmg;
             const newHp = Math.max(0, u.hp - dmg);
+            mineExpEarned += newHp === 0 ? 65 : 30;
             const nextPoison =
               poisonTurns > 0 && newHp > 0
                 ? Math.max(u.poisonedTurns ?? 0, poisonTurns)
@@ -406,6 +422,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
             return { ...u, hp: newHp, alive: newHp > 0, poisonedTurns: nextPoison };
           } else if (dist === 1 && splashDmg > 0) {
             const newHp = Math.max(0, u.hp - splashDmg);
+            mineExpEarned += newHp === 0 ? 45 : 20;
             spawnFloat(u.x, u.y, `溅射 -${splashDmg}`, 'mine');
             addLog(
               `💥 ${u.name} 遭【${mDef.name}】碎片波及 -${splashDmg}${
@@ -419,10 +436,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
 
         unitsRef.current = nextUnits;
         setUnits(nextUnits);
+        if (m.placerId && mineExpEarned > 0) {
+          awardExp(m.placerId, mineExpEarned);
+        }
         await delay(260);
       }
     },
-    [addLog, spawnExplosion, spawnFloat]
+    [addLog, awardExp, spawnExplosion, spawnFloat]
   );
 
   // Check if Stage 1 captive Zhu Laozhong is rescued
@@ -575,7 +595,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setUnits(updated);
 
     await delay(280);
-    awardExp(attacker.id, newHp === 0 ? 55 : 25);
+    awardExp(attacker.id, newHp === 0 ? 75 : 35);
 
     const end = checkBattleEnd(updated);
     setBusy(false);
@@ -603,6 +623,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       x: tx,
       y: ty,
       owner: 'player',
+      placerId: unit.id,
       detected: false,
     };
     const nextMines = [...minesRef.current, newMine];
@@ -667,10 +688,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setSelectedUnitId(null);
   };
 
-  // Langu field-medic healing an injured teammate
+  // Langu field-medic healing an injured teammate (upgraded for 娘子军)
   const handleHealAlly = (medic: Unit, ally: Unit) => {
     sound.playHeal();
-    const healAmt = Math.min(48, ally.maxHp - ally.hp);
+    const maxHeal = medic.unitClass === '娘子军' ? 66 : 48;
+    const healAmt = Math.min(maxHeal, ally.maxHp - ally.hp);
     spawnFloat(ally.x, ally.y, `战地救护 +${healAmt}`, 'heal');
     addLog(`✚ ${medic.name} 为 ${ally.name} 施展战地救护，恢复 ${healAmt} 点生命！`);
     const updated = unitsRef.current.map((u) => {
@@ -680,7 +702,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     });
     unitsRef.current = updated;
     setUnits(updated);
-    awardExp(medic.id, 25);
+    awardExp(medic.id, 35);
     setPreMovePos(null);
     setActionMode('select');
     setSelectedUnitId(null);

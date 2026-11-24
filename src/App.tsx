@@ -3,8 +3,9 @@ import { Award, Bomb, Compass, Play, RotateCcw, Shield, Sparkles, Wrench } from 
 import { BattleScreen } from './components/BattleScreen';
 import { CampWorkshop } from './components/CampWorkshop';
 import { ALL_MINE_TYPES, makeMineInventory, MINES } from './data/mines';
+import { applyUnitPromotion, emptyPromoBooks, getNextPromotion } from './data/promotions';
 import { HERO_UNLOCK_ORDER, INITIAL_HERO_ROSTER, STAGES } from './data/stages';
-import { MaterialId, MineType, ScreenMode, Unit } from './types/game';
+import { MaterialId, MineType, PromoBookId, ScreenMode, Unit } from './types/game';
 import { sound } from './utils/sound';
 import titleBg from './assets/title-bg.jpg';
 
@@ -33,8 +34,50 @@ function buildRosterForStage(stageNumber: number): Unit[] {
       bonusMines.xiezi_lei = 2;
       bonusMines.weizhuang_lei = 2;
     }
+
+    // Calibrate starting experience/level when jumping directly into later stages
+    let level = base.level;
+    let maxHp = base.maxHp;
+    let atk = base.atk;
+    let def = base.def;
+    if (stageNumber >= 3 && ['commander', 'zhulaozhong', 'zhaohu', 'zhangga'].includes(k)) {
+      const targetLv = Math.max(level, stageNumber === 3 ? 3 : stageNumber === 4 ? 4 : 5);
+      const diff = targetLv - level;
+      if (diff > 0) {
+        level = targetLv;
+        maxHp += diff * 12;
+        atk += diff * 4;
+        def += diff * 2;
+      }
+    }
+    if (stageNumber >= 4 && k === 'lixiangyang') {
+      const targetLv = stageNumber === 4 ? 4 : 6;
+      const diff = targetLv - level;
+      if (diff > 0) {
+        level = targetLv;
+        maxHp += diff * 12;
+        atk += diff * 4;
+        def += diff * 2;
+      }
+    }
+    if (stageNumber >= 5 && ['shigengxin', 'langu', 'xiaofei'].includes(k)) {
+      const targetLv = Math.max(level, 5);
+      const diff = targetLv - level;
+      if (diff > 0) {
+        level = targetLv;
+        maxHp += diff * 12;
+        atk += diff * 4;
+        def += diff * 2;
+      }
+    }
+
     return {
       ...base,
+      level,
+      maxHp,
+      hp: maxHp,
+      atk,
+      def,
       mines: { ...base.mines, ...bonusMines },
       x: 0,
       y: 0,
@@ -52,6 +95,25 @@ function getUnlockedMinesForStage(stageNumber: number): MineType[] {
   return ALL_MINE_TYPES.filter((m) => MINES[m].unlockStage <= stageNumber);
 }
 
+function getBooksForStageEntry(stageNumber: number): Record<PromoBookId, number> {
+  const books = emptyPromoBooks();
+  if (stageNumber >= 2) books.wugong_xinfa = 1;
+  if (stageNumber >= 3) {
+    books.yezhan_xinfa = 1;
+    books.qiangxie_jichu = 1;
+  }
+  if (stageNumber >= 4) {
+    books.hongjin = 1;
+    books.junqi = 1;
+  }
+  if (stageNumber >= 5) {
+    books.youji_xinfa = 1;
+    books.qiangxie_jingdian = 1;
+    books.huoqi_jichu = 1;
+  }
+  return books;
+}
+
 export const App: React.FC = () => {
   const [screen, setScreen] = useState<ScreenMode>('title');
   const [stageIdx, setStageIdx] = useState(0);
@@ -62,6 +124,7 @@ export const App: React.FC = () => {
     makeMineInventory({ tu_lei: 2, weizhuang_lei: 2, shi_lei: 1 })
   );
   const [unlockedMines, setUnlockedMines] = useState<MineType[]>(['tu_lei']);
+  const [promoBooks, setPromoBooks] = useState<Record<PromoBookId, number>>(emptyPromoBooks);
   const [roster, setRoster] = useState<Unit[]>(() => buildRosterForStage(1));
 
   const currentStage = STAGES[stageIdx];
@@ -70,6 +133,7 @@ export const App: React.FC = () => {
     const stageNum = STAGES[targetStageIdx]?.id ?? 1;
     setStageIdx(targetStageIdx);
     setUnlockedMines(getUnlockedMinesForStage(stageNum));
+    setPromoBooks(getBooksForStageEntry(stageNum));
     setRoster(buildRosterForStage(stageNum));
     setMaterials({
       clay: 4 + targetStageIdx * 2,
@@ -104,7 +168,7 @@ export const App: React.FC = () => {
     const nextIdx = stageIdx + 1;
     const nextStageNum = STAGES[nextIdx]?.id ?? currentStage.id;
 
-    // Merge hero progression + newly unlocked heroes for the next stage
+    // Merge hero progression (including promoted class/sprite) + add newly joined heroes
     setRoster((prev) => {
       const map = new Map<string, Unit>(prev.map((u) => [u.id, u]));
       for (const h of survivingHeroes) {
@@ -139,6 +203,16 @@ export const App: React.FC = () => {
       }
       return next;
     });
+
+    if (currentStage.rewardPromoBooks) {
+      setPromoBooks((prev) => {
+        const next = { ...prev };
+        for (const [bookId, amt] of Object.entries(currentStage.rewardPromoBooks ?? {})) {
+          next[bookId as PromoBookId] = (next[bookId as PromoBookId] ?? 0) + (amt ?? 0);
+        }
+        return next;
+      });
+    }
 
     setUnlockedMines((prev) => {
       const merged = new Set<MineType>(prev);
@@ -202,6 +276,23 @@ export const App: React.FC = () => {
     );
   };
 
+  const handlePromoteUnit = (unitId: string) => {
+    const target = roster.find((u) => u.id === unitId);
+    if (!target) return;
+    const rule = getNextPromotion(target);
+    if (!rule) return;
+    if (target.level < rule.reqLevel) return;
+    if ((promoBooks[rule.reqBook] ?? 0) <= 0) return;
+
+    setPromoBooks((prev) => ({
+      ...prev,
+      [rule.reqBook]: Math.max(0, (prev[rule.reqBook] ?? 0) - 1),
+    }));
+    setRoster((prev) =>
+      prev.map((u) => (u.id === unitId ? applyUnitPromotion(u, rule) : u))
+    );
+  };
+
   if (screen === 'title') {
     return (
       <div className="title-screen">
@@ -219,7 +310,7 @@ export const App: React.FC = () => {
             抗日<span>：</span>地雷战
           </h1>
           <p className="game-tagline">
-            1942 冀中平阳 · 12位抗日英雄集结 · 六大名雷研制 · 五大战役史诗还原
+            1942 冀中平阳 · 12位抗日英雄集结 · 六大名雷研制 · 原版兵种转职晋升
           </p>
 
           <div className="title-features">
@@ -227,10 +318,10 @@ export const App: React.FC = () => {
               <Bomb size={15} /> 全五关原版剧情台词
             </span>
             <span>
-              <Shield size={15} /> 土/伪/石/铁/蝎/引发雷
+              <Shield size={15} /> 兵书+等级双条件转职
             </span>
             <span>
-              <Compass size={15} /> 全高清立绘与2.5D战棋
+              <Compass size={15} /> 2.5D 高清立绘与换装
             </span>
           </div>
 
@@ -265,7 +356,7 @@ export const App: React.FC = () => {
                   setScreen('camp');
                 }}
               >
-                <Wrench size={14} /> 直接体验：全配方地雷工坊（备战白洋淀第五关）
+                <Wrench size={14} /> 直接体验：全配方地雷工坊与兵种晋升（第5关前整备）
               </button>
             </div>
           </div>
@@ -280,10 +371,12 @@ export const App: React.FC = () => {
         materials={materials}
         mineStock={mineStock}
         unlockedMines={unlockedMines}
+        promoBooks={promoBooks}
         roster={roster}
         nextStageTitle={STAGES[stageIdx]?.name ?? '下一战役'}
         onCraftMine={handleCraftMine}
         onAssignMine={handleAssignMine}
+        onPromoteUnit={handlePromoteUnit}
         onStartNextStage={() => {
           setBattleKey((k) => k + 1);
           setScreen('battle');
@@ -308,7 +401,7 @@ export const App: React.FC = () => {
             你已率领游击大队长、朱老忠、赵虎、张嘎、李向阳、史更新、兰姑、肖飞、柳忻、李霜泗、张长庚与九爷等 12 位抗日群英，连克平阳首战、赵村工兵战、李村除奸高敬天、施南古道击溃谷寿夫与白洋淀决战松井司令五大经典战役！
           </p>
           <p className="complete-next-note">
-            土雷连环、伪装雷诈敌、石雷碎石溅射、铁雷高爆破甲、蝎子雷剧毒持续掉血、引发雷反杀探雷工兵——六大名雷体系已全部就绪！可随时返回主界面任选前五关重复挑战！
+            土/伪/石/铁/蝎/引发六大名雷体系 + 1998 原版「等级+兵书双条件转职晋升」（大刀队→武术队、民兵队→野战队、手枪队→双枪队→冲锋队、儿童团→童子军、妇救会→娘子军等）已全数实装！
           </p>
           <div className="complete-btns">
             <button

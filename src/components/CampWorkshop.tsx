@@ -1,20 +1,37 @@
 import React, { useState } from 'react';
-import { Bomb, Hammer, Heart, Lock, Package, Play, Shield } from 'lucide-react';
+import {
+  ArrowRight,
+  Award,
+  Bomb,
+  BookOpen,
+  CheckCircle2,
+  Hammer,
+  Heart,
+  Lock,
+  Package,
+  Play,
+  Shield,
+  Sparkles,
+} from 'lucide-react';
 import { ALL_MATERIAL_IDS, ALL_MINE_TYPES, MATERIALS, MINES } from '../data/mines';
+import { ALL_PROMO_BOOK_IDS, getNextPromotion, PROMO_BOOKS } from '../data/promotions';
 import { getTotalMines } from '../engine/tactics';
-import { MaterialId, MineType, Unit } from '../types/game';
+import { MaterialId, MineType, PromoBookId, Unit } from '../types/game';
 import { sound } from '../utils/sound';
 import { CharacterPortrait } from './CharacterPortrait';
+import { UNIT_SPRITE_MAP } from './TacticalTile';
 import campBg from '../assets/camp-bg.jpg';
 
 interface CampWorkshopProps {
   materials: Record<MaterialId, number>;
   mineStock: Record<MineType, number>;
   unlockedMines: MineType[];
+  promoBooks: Record<PromoBookId, number>;
   roster: Unit[];
   nextStageTitle: string;
   onCraftMine: (mineType: MineType) => void;
   onAssignMine: (unitId: string, mineType: MineType, delta: 1 | -1) => void;
+  onPromoteUnit: (unitId: string) => void;
   onStartNextStage: () => void;
 }
 
@@ -22,13 +39,16 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
   materials,
   mineStock,
   unlockedMines,
+  promoBooks,
   roster,
   nextStageTitle,
   onCraftMine,
   onAssignMine,
+  onPromoteUnit,
   onStartNextStage,
 }) => {
   const [selectedHeroId, setSelectedHeroId] = useState<string>(roster[0]?.id ?? 'commander');
+  const [promoNotice, setPromoNotice] = useState<string | null>(null);
   const selectedHero = roster.find((u) => u.id === selectedHeroId) ?? roster[0];
   const unlockedSet = new Set<MineType>(unlockedMines);
 
@@ -39,6 +59,17 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
       ([mat, cost]) => (materials[mat as MaterialId] ?? 0) >= (cost ?? 0)
     );
   };
+
+  const nextPromo = selectedHero ? getNextPromotion(selectedHero) : null;
+  const reqBookMeta = nextPromo ? PROMO_BOOKS[nextPromo.reqBook] : null;
+  const hasBookCount = nextPromo ? promoBooks[nextPromo.reqBook] ?? 0 : 0;
+  const levelMet = !!selectedHero && !!nextPromo && selectedHero.level >= nextPromo.reqLevel;
+  const bookMet = !!nextPromo && hasBookCount > 0;
+  const canPromoteSelected = !!selectedHero && !!nextPromo && levelMet && bookMet;
+
+  const curSpriteSrc = selectedHero
+    ? UNIT_SPRITE_MAP[selectedHero.spriteId ?? selectedHero.portraitId] ?? UNIT_SPRITE_MAP.commander
+    : UNIT_SPRITE_MAP.commander;
 
   return (
     <div
@@ -51,8 +82,8 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
       <div className="camp-container">
         <header className="camp-header">
           <div>
-            <div className="camp-eyebrow">平阳抗日根据地 · 战前整备</div>
-            <h1 className="camp-title">地雷工坊与部队配给</h1>
+            <div className="camp-eyebrow">平阳抗日根据地 · 战前整备与兵种转职</div>
+            <h1 className="camp-title">地雷工坊与部队晋升</h1>
           </div>
           <button
             className="btn-primary-gold"
@@ -87,6 +118,36 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
             })}
           </div>
         </section>
+
+        {/* 1998 Original Promotion Books Loot Strip */}
+        <section className="camp-materials-bar promo-books-bar">
+          <div className="section-label">
+            <BookOpen size={16} /> 转职兵书库（击毙敌将战利缴获 · 须兼备等级与兵书方可晋升）
+          </div>
+          <div className="materials-grid">
+            {ALL_PROMO_BOOK_IDS.map((bId) => {
+              const book = PROMO_BOOKS[bId];
+              const cnt = promoBooks[bId] ?? 0;
+              return (
+                <div
+                  key={bId}
+                  className={`material-chip promo-book-chip ${cnt > 0 ? 'owned' : 'empty'}`}
+                  title={book.dropSource}
+                >
+                  <span className="mat-dot" style={{ backgroundColor: book.color }} />
+                  <span className="mat-name">{book.name}</span>
+                  <span className="mat-count">×{cnt}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {promoNotice && (
+          <div className="promo-success-banner">
+            <Sparkles size={16} /> {promoNotice}
+          </div>
+        )}
 
         <div className="camp-main-grid">
           {/* Left: Mine Crafting Workshop */}
@@ -156,35 +217,45 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
             </div>
           </section>
 
-          {/* Right: Squad Loadout & Mine Assignment */}
+          {/* Right: Squad Loadout, Promotion & Mine Assignment */}
           <section className="camp-card">
             <div className="card-header">
               <Bomb size={18} />
-              <h2>游击队员配雷</h2>
-              <span className="card-hint">已参战队员全满血，点击头像分配地雷</span>
+              <h2>部队晋升与配雷</h2>
+              <span className="card-hint">已达等级并持对应兵书，即可转职高阶兵种</span>
             </div>
 
             <div className="squad-tabs">
-              {roster.map((u) => (
-                <button
-                  key={u.id}
-                  className={`squad-tab ${u.id === selectedHero?.id ? 'active' : ''}`}
-                  onClick={() => {
-                    sound.playClick();
-                    setSelectedHeroId(u.id);
-                  }}
-                >
-                  <div className="squad-tab-avatar">
-                    <CharacterPortrait portraitId={u.portraitId} alt={u.name} />
-                  </div>
-                  <div className="squad-tab-meta">
-                    <div className="squad-tab-name">{u.name}</div>
-                    <div className="squad-tab-class">
-                      {u.unitClass} {u.canLayMines ? `· ${getTotalMines(u)}雷` : ''}
+              {roster.map((u) => {
+                const rule = getNextPromotion(u);
+                const ready =
+                  !!rule && u.level >= rule.reqLevel && (promoBooks[rule.reqBook] ?? 0) > 0;
+                return (
+                  <button
+                    key={u.id}
+                    className={`squad-tab ${u.id === selectedHero?.id ? 'active' : ''} ${
+                      ready ? 'promo-ready-tab' : ''
+                    }`}
+                    onClick={() => {
+                      sound.playClick();
+                      setSelectedHeroId(u.id);
+                    }}
+                  >
+                    <div className="squad-tab-avatar">
+                      <CharacterPortrait portraitId={u.portraitId} alt={u.name} />
                     </div>
-                  </div>
-                </button>
-              ))}
+                    <div className="squad-tab-meta">
+                      <div className="squad-tab-name">
+                        {u.name} <small className="tab-lv">Lv.{u.level}</small>
+                      </div>
+                      <div className="squad-tab-class">
+                        {u.unitClass}
+                        {ready ? ' · 可转职!' : u.canLayMines ? ` · ${getTotalMines(u)}雷` : ''}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
             {selectedHero && (
@@ -199,7 +270,9 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                   <div className="hero-loadout-stats">
                     <h3>
                       {selectedHero.name}{' '}
-                      <span className="lv-pill">Lv.{selectedHero.level}</span>
+                      <span className="lv-pill">
+                        Lv.{selectedHero.level} · {selectedHero.unitClass}
+                      </span>
                     </h3>
                     <div className="sub-title">
                       {selectedHero.title} · {selectedHero.weaponName}
@@ -218,6 +291,91 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* 1998 Class Promotion Panel */}
+                {nextPromo && reqBookMeta ? (
+                  <div className="promo-box">
+                    <div className="promo-box-head">
+                      <Award size={15} />
+                      <strong>原版兵种转职路线</strong>
+                      <span className="promo-route-tag">
+                        {nextPromo.fromClass} → {nextPromo.toClass}
+                      </span>
+                    </div>
+
+                    <div className="promo-preview-row">
+                      <div className="promo-sprite-pair">
+                        <div className="promo-sprite-card">
+                          <img src={curSpriteSrc} alt={nextPromo.fromClass} />
+                          <span>{nextPromo.fromClass}</span>
+                        </div>
+                        <ArrowRight size={18} className="promo-arrow" />
+                        <div className="promo-sprite-card target">
+                          <img
+                            src={UNIT_SPRITE_MAP[nextPromo.toSpriteId] ?? curSpriteSrc}
+                            alt={nextPromo.toClass}
+                          />
+                          <span>{nextPromo.toClass}</span>
+                        </div>
+                      </div>
+
+                      <div className="promo-details">
+                        <div className="promo-bonuses">
+                          <span>生命 +{nextPromo.bonus.maxHp}</span>
+                          <span>攻击 +{nextPromo.bonus.atk}</span>
+                          <span>防御 +{nextPromo.bonus.def}</span>
+                          {nextPromo.bonus.move && <span>移动 +{nextPromo.bonus.move}</span>}
+                          {nextPromo.bonus.rangeMax && (
+                            <span>射程 +{nextPromo.bonus.rangeMax}</span>
+                          )}
+                          {nextPromo.bonus.critRate && (
+                            <span>暴击 +{nextPromo.bonus.critRate}%</span>
+                          )}
+                        </div>
+                        <p className="promo-perk">{nextPromo.perkNote}</p>
+                      </div>
+                    </div>
+
+                    <div className="promo-conditions">
+                      <span className={`promo-cond-pill ${levelMet ? 'met' : 'unmet'}`}>
+                        {levelMet ? <CheckCircle2 size={13} /> : <Lock size={13} />}
+                        等级要求：Lv.{nextPromo.reqLevel}（当前 Lv.{selectedHero.level}）
+                      </span>
+                      <span className={`promo-cond-pill ${bookMet ? 'met' : 'unmet'}`}>
+                        {bookMet ? <CheckCircle2 size={13} /> : <Lock size={13} />}
+                        转职典籍：{reqBookMeta.name} ×1（{hasBookCount > 0 ? `已有 ×${hasBookCount}` : reqBookMeta.dropSource}）
+                      </span>
+                    </div>
+
+                    <button
+                      className="btn-promote"
+                      disabled={!canPromoteSelected}
+                      onClick={() => {
+                        sound.playPromote();
+                        onPromoteUnit(selectedHero.id);
+                        setPromoNotice(
+                          `★ ${selectedHero.name} 达成晋升条件，耗费${reqBookMeta.name}正式转职为【${nextPromo.toClass}】！战力大增且战场小人已换装！`
+                        );
+                      }}
+                    >
+                      <Sparkles size={15} />
+                      {canPromoteSelected
+                        ? `消耗 ${reqBookMeta.name} · 晋升为【${nextPromo.toClass}】`
+                        : !levelMet && !bookMet
+                        ? `需先战至 Lv.${nextPromo.reqLevel} 并缴获 ${reqBookMeta.name}`
+                        : !levelMet
+                        ? `等级未满（需在战斗中升至 Lv.${nextPromo.reqLevel}）`
+                        : `缺少转职兵书（${reqBookMeta.dropSource}）`}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="promo-box promo-maxed">
+                    <Award size={15} />
+                    <span>
+                      【{selectedHero.name} · {selectedHero.unitClass}】已为该系高阶精锐兵种，战阵无需再转职。
+                    </span>
+                  </div>
+                )}
 
                 {selectedHero.canLayMines ? (
                   <div className="assign-mines-grid">
@@ -259,7 +417,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                   </div>
                 ) : (
                   <div className="cannot-mine-note">
-                    {selectedHero.name}为近战大刀/朴刀突击猛将，不负责埋雷，擅长正面斩杀被地雷炸残的日伪军！
+                    {selectedHero.name}为正面突击主力，不负责埋雷，擅长斩杀被地雷炸残的日伪军！
                   </div>
                 )}
               </div>

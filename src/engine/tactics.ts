@@ -185,17 +185,26 @@ export function getMineableTiles(
 }
 
 export function getAttackKind(unit: Unit, distance: number): AttackFx['kind'] {
-  if (unit.weaponName.includes('抬枪') || unit.weaponName.includes('火铳')) {
+  if (
+    unit.weaponName.includes('抬枪') ||
+    unit.weaponName.includes('火铳') ||
+    unit.weaponName.includes('炮台')
+  ) {
     return 'heavy_cannon';
   }
-  if (unit.weaponName.includes('双') || unit.id === 'commander' || unit.id === 'lixiangyang' || unit.id === 'lishuangsi') {
+  if (unit.weaponName.includes('冲锋枪') || unit.weaponName.includes('机枪')) {
+    return 'mg';
+  }
+  if (
+    unit.weaponName.includes('双') ||
+    unit.id === 'commander' ||
+    unit.id === 'lixiangyang' ||
+    unit.id === 'lishuangsi'
+  ) {
     return 'dual_pistol';
   }
   if (unit.weaponName.includes('大刀') || (unit.weaponName.includes('刀') && distance === 1)) {
     return 'blade';
-  }
-  if (unit.weaponName.includes('机枪')) {
-    return 'mg';
   }
   if (unit.weaponName.includes('弹弓')) {
     return 'slingshot';
