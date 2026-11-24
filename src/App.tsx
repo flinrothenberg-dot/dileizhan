@@ -1,11 +1,22 @@
-import React, { useState } from 'react';
-import { Award, Bomb, Compass, Play, RotateCcw, Shield, Sparkles, Wrench } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { Award, Bomb, Compass, FolderOpen, Play, RotateCcw, Shield, Sparkles, Wrench } from 'lucide-react';
 import { BattleScreen } from './components/BattleScreen';
 import { CampWorkshop } from './components/CampWorkshop';
+import { SaveLoadModal } from './components/SaveLoadModal';
 import { ALL_MINE_TYPES, makeMineInventory, MINES } from './data/mines';
 import { applyUnitPromotion, emptyPromoBooks, getNextPromotion } from './data/promotions';
 import { HERO_UNLOCK_ORDER, INITIAL_HERO_ROSTER, STAGES } from './data/stages';
-import { MaterialId, MineType, PromoBookId, ScreenMode, Unit } from './types/game';
+import {
+  BattleSnapshot,
+  CampaignSaveData,
+  MaterialId,
+  MineType,
+  PromoBookId,
+  SaveSlotId,
+  ScreenMode,
+  Unit,
+} from './types/game';
+import { getMostRecentSave, writeSaveSlot } from './utils/saveSystem';
 import { sound } from './utils/sound';
 import titleBg from './assets/title-bg.jpg';
 
@@ -159,15 +170,78 @@ export const App: React.FC = () => {
   const [promoBooks, setPromoBooks] = useState<Record<PromoBookId, number>>(emptyPromoBooks);
   const [roster, setRoster] = useState<Unit[]>(() => buildRosterForStage(1));
 
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [saveRev, setSaveRev] = useState(0);
+  const [loadedBattleSnapshot, setLoadedBattleSnapshot] = useState<BattleSnapshot | undefined>(
+    undefined
+  );
+  const liveBattleSnapshotRef = useRef<BattleSnapshot | undefined>(undefined);
+
   const currentStage = STAGES[stageIdx];
+  const latestSave = useMemo(() => getMostRecentSave(), [screen, saveRev, saveModalOpen]);
+
+  const buildSaveLabel = (
+    targetScreen: 'camp' | 'battle',
+    targetStageIdx: number,
+    battleSnap?: BattleSnapshot
+  ) => {
+    const st = STAGES[targetStageIdx];
+    const num = st?.id ?? targetStageIdx + 1;
+    const shortTitle = st?.name.split('·')[0].trim() ?? '平阳战役';
+    if (targetScreen === 'battle' && battleSnap) {
+      return `第${num}关 ${shortTitle} · 第${battleSnap.turn}回合`;
+    }
+    return targetScreen === 'camp'
+      ? `第${num}关前整备 · ${shortTitle}`
+      : `第${num}关 · ${shortTitle}`;
+  };
+
+  const handleSaveToSlot = (slotId: SaveSlotId): CampaignSaveData | null => {
+    const saveScreen: 'camp' | 'battle' = screen === 'camp' ? 'camp' : 'battle';
+    const bSnap = saveScreen === 'battle' ? liveBattleSnapshotRef.current : undefined;
+    const saved = writeSaveSlot(slotId, {
+      label: buildSaveLabel(saveScreen, stageIdx, bSnap),
+      screen: saveScreen,
+      stageIdx,
+      stageName: currentStage?.name ?? '',
+      materials,
+      mineStock,
+      unlockedMines,
+      promoBooks,
+      roster,
+      battle: bSnap,
+    });
+    if (saved) setSaveRev((r) => r + 1);
+    return saved;
+  };
+
+  const applyLoadedSave = (save: CampaignSaveData) => {
+    sound.playClick();
+    const clampedIdx = Math.max(0, Math.min(STAGES.length - 1, save.stageIdx));
+    setStageIdx(clampedIdx);
+    setMaterials({ ...BASE_MATERIALS, ...save.materials });
+    setMineStock(makeMineInventory(save.mineStock));
+    setUnlockedMines([...save.unlockedMines]);
+    setPromoBooks({ ...emptyPromoBooks(), ...save.promoBooks });
+    setRoster(save.roster.map((u) => ({ ...u, mines: { ...u.mines } })));
+    if (save.screen === 'battle') {
+      setLoadedBattleSnapshot(save.battle);
+      liveBattleSnapshotRef.current = save.battle;
+      setBattleKey((k) => k + 1);
+      setScreen('battle');
+    } else {
+      setLoadedBattleSnapshot(undefined);
+      liveBattleSnapshotRef.current = undefined;
+      setScreen('camp');
+    }
+  };
 
   const seedCampaignAtStage = (targetStageIdx: number) => {
     const stageNum = STAGES[targetStageIdx]?.id ?? 1;
-    setStageIdx(targetStageIdx);
-    setUnlockedMines(getUnlockedMinesForStage(stageNum));
-    setPromoBooks(getBooksForStageEntry(stageNum));
-    setRoster(buildRosterForStage(stageNum));
-    setMaterials({
+    const nextUnlocked = getUnlockedMinesForStage(stageNum);
+    const nextBooks = getBooksForStageEntry(stageNum);
+    const nextRoster = buildRosterForStage(stageNum);
+    const nextMats = {
       clay: 4 + targetStageIdx * 2,
       stone: 4 + targetStageIdx * 2,
       wood: 3 + targetStageIdx,
@@ -176,26 +250,45 @@ export const App: React.FC = () => {
       nitre: 4 + targetStageIdx * 2,
       sulfur: 2 + targetStageIdx * 2,
       charcoal: 3 + targetStageIdx * 2,
+    };
+    const nextStock = makeMineInventory({
+      tu_lei: 2,
+      weizhuang_lei: stageNum >= 2 ? 2 : 0,
+      shi_lei: stageNum >= 2 ? 2 : 0,
+      tie_lei: stageNum >= 3 ? 2 : 0,
+      xiezi_lei: stageNum >= 4 ? 2 : 0,
+      yinfa_lei: stageNum >= 5 ? 2 : 0,
+      chongtian_pao: stageNum >= 6 ? 2 : 0,
+      cidian_lei: stageNum >= 7 ? 2 : 0,
+      zhangqi_lei: stageNum >= 9 ? 2 : 0,
+      yaokong_lei: stageNum >= 18 ? 2 : 0,
     });
-    setMineStock(
-      makeMineInventory({
-        tu_lei: 2,
-        weizhuang_lei: stageNum >= 2 ? 2 : 0,
-        shi_lei: stageNum >= 2 ? 2 : 0,
-        tie_lei: stageNum >= 3 ? 2 : 0,
-        xiezi_lei: stageNum >= 4 ? 2 : 0,
-        yinfa_lei: stageNum >= 5 ? 2 : 0,
-        chongtian_pao: stageNum >= 6 ? 2 : 0,
-        cidian_lei: stageNum >= 7 ? 2 : 0,
-        zhangqi_lei: stageNum >= 9 ? 2 : 0,
-        yaokong_lei: stageNum >= 18 ? 2 : 0,
-      })
-    );
+    setStageIdx(targetStageIdx);
+    setUnlockedMines(nextUnlocked);
+    setPromoBooks(nextBooks);
+    setRoster(nextRoster);
+    setMaterials(nextMats);
+    setMineStock(nextStock);
+    return { nextUnlocked, nextBooks, nextRoster, nextMats, nextStock };
   };
 
   const handleStartNewGame = (targetStageIdx = 0) => {
     sound.playClick();
-    seedCampaignAtStage(targetStageIdx);
+    const seeded = seedCampaignAtStage(targetStageIdx);
+    setLoadedBattleSnapshot(undefined);
+    liveBattleSnapshotRef.current = undefined;
+    writeSaveSlot('auto', {
+      label: buildSaveLabel('battle', targetStageIdx),
+      screen: 'battle',
+      stageIdx: targetStageIdx,
+      stageName: STAGES[targetStageIdx]?.name ?? '',
+      materials: seeded.nextMats,
+      mineStock: seeded.nextStock,
+      unlockedMines: seeded.nextUnlocked,
+      promoBooks: seeded.nextBooks,
+      roster: seeded.nextRoster,
+    });
+    setSaveRev((r) => r + 1);
     setBattleKey((k) => k + 1);
     setScreen('battle');
   };
@@ -204,60 +297,70 @@ export const App: React.FC = () => {
     const nextIdx = stageIdx + 1;
     const nextStageNum = STAGES[nextIdx]?.id ?? currentStage.id;
 
-    // Merge hero progression (skip transient VIP escort NPCs such as Qian Yusen / villagers / Li Zheng)
-    setRoster((prev) => {
-      const map = new Map<string, Unit>(prev.map((u) => [u.id, u]));
-      for (const h of survivingHeroes) {
-        if (!INITIAL_HERO_ROSTER[h.id]) continue;
-        map.set(h.id, { ...h, hp: h.maxHp, acted: false, moved: false, isCaptive: false });
+    // Merge hero progression synchronously so auto-save stores full victory progress immediately
+    const map = new Map<string, Unit>(roster.map((u) => [u.id, u]));
+    for (const h of survivingHeroes) {
+      if (!INITIAL_HERO_ROSTER[h.id]) continue;
+      map.set(h.id, { ...h, hp: h.maxHp, acted: false, moved: false, isCaptive: false });
+    }
+    const nextKeys = HERO_UNLOCK_ORDER[nextStageNum] ?? [];
+    for (const k of nextKeys) {
+      if (!map.has(k)) {
+        const base = INITIAL_HERO_ROSTER[k];
+        map.set(k, {
+          ...base,
+          mines: { ...base.mines },
+          x: 0,
+          y: 0,
+          acted: false,
+          moved: false,
+          stunnedTurns: 0,
+          poisonedTurns: 0,
+          alive: true,
+          facing: 'right',
+        });
       }
-      const nextKeys = HERO_UNLOCK_ORDER[nextStageNum] ?? [];
-      for (const k of nextKeys) {
-        if (!map.has(k)) {
-          const base = INITIAL_HERO_ROSTER[k];
-          map.set(k, {
-            ...base,
-            mines: { ...base.mines },
-            x: 0,
-            y: 0,
-            acted: false,
-            moved: false,
-            stunnedTurns: 0,
-            poisonedTurns: 0,
-            alive: true,
-            facing: 'right',
-          });
-        }
-      }
-      return Array.from(map.values());
-    });
+    }
+    const nextRoster = Array.from(map.values());
+    setRoster(nextRoster);
 
-    const rewards = currentStage.rewardMaterials;
-    setMaterials((prev) => {
-      const next = { ...prev };
-      for (const [mat, amt] of Object.entries(rewards)) {
-        next[mat as MaterialId] = (next[mat as MaterialId] ?? 0) + (amt ?? 0);
-      }
-      return next;
-    });
+    const nextMaterials = { ...materials };
+    for (const [mat, amt] of Object.entries(currentStage.rewardMaterials)) {
+      nextMaterials[mat as MaterialId] = (nextMaterials[mat as MaterialId] ?? 0) + (amt ?? 0);
+    }
+    setMaterials(nextMaterials);
 
+    const nextPromoBooks = { ...promoBooks };
     if (currentStage.rewardPromoBooks) {
-      setPromoBooks((prev) => {
-        const next = { ...prev };
-        for (const [bookId, amt] of Object.entries(currentStage.rewardPromoBooks ?? {})) {
-          next[bookId as PromoBookId] = (next[bookId as PromoBookId] ?? 0) + (amt ?? 0);
-        }
-        return next;
-      });
+      for (const [bookId, amt] of Object.entries(currentStage.rewardPromoBooks)) {
+        nextPromoBooks[bookId as PromoBookId] =
+          (nextPromoBooks[bookId as PromoBookId] ?? 0) + (amt ?? 0);
+      }
+      setPromoBooks(nextPromoBooks);
     }
 
-    setUnlockedMines((prev) => {
-      const merged = new Set<MineType>(prev);
-      for (const um of currentStage.unlockedMines ?? []) {
-        merged.add(um);
-      }
-      return ALL_MINE_TYPES.filter((m) => merged.has(m));
+    const mergedMines = new Set<MineType>(unlockedMines);
+    for (const um of currentStage.unlockedMines ?? []) {
+      mergedMines.add(um);
+    }
+    const nextUnlocked = ALL_MINE_TYPES.filter((m) => mergedMines.has(m));
+    setUnlockedMines(nextUnlocked);
+
+    const targetCampIdx = nextIdx < STAGES.length ? nextIdx : STAGES.length - 1;
+    writeSaveSlot('auto', {
+      label: buildSaveLabel('camp', targetCampIdx),
+      screen: 'camp',
+      stageIdx: targetCampIdx,
+      stageName: STAGES[targetCampIdx]?.name ?? currentStage.name,
+      materials: nextMaterials,
+      mineStock,
+      unlockedMines: nextUnlocked,
+      promoBooks: nextPromoBooks,
+      roster: nextRoster,
     });
+    setSaveRev((r) => r + 1);
+    setLoadedBattleSnapshot(undefined);
+    liveBattleSnapshotRef.current = undefined;
 
     if (nextIdx < STAGES.length) {
       setStageIdx(nextIdx);
@@ -274,17 +377,27 @@ export const App: React.FC = () => {
     );
     if (!can) return;
 
-    setMaterials((prev) => {
-      const next = { ...prev };
-      for (const [m, c] of Object.entries(recipe)) {
-        next[m as MaterialId] = (next[m as MaterialId] ?? 0) - (c ?? 0);
-      }
-      return next;
+    const nextMaterials = { ...materials };
+    for (const [m, c] of Object.entries(recipe)) {
+      nextMaterials[m as MaterialId] = (nextMaterials[m as MaterialId] ?? 0) - (c ?? 0);
+    }
+    const nextStock = {
+      ...mineStock,
+      [mineType]: (mineStock[mineType] ?? 0) + 1,
+    };
+    setMaterials(nextMaterials);
+    setMineStock(nextStock);
+    writeSaveSlot('auto', {
+      label: buildSaveLabel('camp', stageIdx),
+      screen: 'camp',
+      stageIdx,
+      stageName: currentStage?.name ?? '',
+      materials: nextMaterials,
+      mineStock: nextStock,
+      unlockedMines,
+      promoBooks,
+      roster,
     });
-    setMineStock((prev) => ({
-      ...prev,
-      [mineType]: (prev[mineType] ?? 0) + 1,
-    }));
   };
 
   const handleAssignMine = (unitId: string, mineType: MineType, delta: 1 | -1) => {
@@ -294,23 +407,34 @@ export const App: React.FC = () => {
     if (!target) return;
     if (delta === -1 && (target.mines[mineType] ?? 0) <= 0) return;
 
-    setMineStock((prev) => ({
-      ...prev,
-      [mineType]: (prev[mineType] ?? 0) - delta,
-    }));
-    setRoster((prev) =>
-      prev.map((u) =>
-        u.id === unitId
-          ? {
-              ...u,
-              mines: {
-                ...u.mines,
-                [mineType]: (u.mines[mineType] ?? 0) + delta,
-              },
-            }
-          : u
-      )
+    const nextStock = {
+      ...mineStock,
+      [mineType]: (mineStock[mineType] ?? 0) - delta,
+    };
+    const nextRoster = roster.map((u) =>
+      u.id === unitId
+        ? {
+            ...u,
+            mines: {
+              ...u.mines,
+              [mineType]: (u.mines[mineType] ?? 0) + delta,
+            },
+          }
+        : u
     );
+    setMineStock(nextStock);
+    setRoster(nextRoster);
+    writeSaveSlot('auto', {
+      label: buildSaveLabel('camp', stageIdx),
+      screen: 'camp',
+      stageIdx,
+      stageName: currentStage?.name ?? '',
+      materials,
+      mineStock: nextStock,
+      unlockedMines,
+      promoBooks,
+      roster: nextRoster,
+    });
   };
 
   const handlePromoteUnit = (unitId: string) => {
@@ -321,17 +445,30 @@ export const App: React.FC = () => {
     if (target.level < rule.reqLevel) return;
     if ((promoBooks[rule.reqBook] ?? 0) <= 0) return;
 
-    setPromoBooks((prev) => ({
-      ...prev,
-      [rule.reqBook]: Math.max(0, (prev[rule.reqBook] ?? 0) - 1),
-    }));
-    setRoster((prev) =>
-      prev.map((u) => (u.id === unitId ? applyUnitPromotion(u, rule) : u))
-    );
+    const nextBooks = {
+      ...promoBooks,
+      [rule.reqBook]: Math.max(0, (promoBooks[rule.reqBook] ?? 0) - 1),
+    };
+    const nextRoster = roster.map((u) => (u.id === unitId ? applyUnitPromotion(u, rule) : u));
+    setPromoBooks(nextBooks);
+    setRoster(nextRoster);
+    writeSaveSlot('auto', {
+      label: buildSaveLabel('camp', stageIdx),
+      screen: 'camp',
+      stageIdx,
+      stageName: currentStage?.name ?? '',
+      materials,
+      mineStock,
+      unlockedMines,
+      promoBooks: nextBooks,
+      roster: nextRoster,
+    });
   };
 
+  let pageContent: React.ReactNode;
+
   if (screen === 'title') {
-    return (
+    pageContent = (
       <div className="title-screen">
         <div
           className="title-bg-art"
@@ -363,12 +500,22 @@ export const App: React.FC = () => {
           </div>
 
           <div className="title-actions">
-            <button
-              className="btn-primary-gold btn-lg"
-              onClick={() => handleStartNewGame(0)}
-            >
-              <Play size={20} /> 从头开始战役（第1关 → 第28关最终决战）
-            </button>
+            <div className="title-primary-row">
+              {latestSave && (
+                <button
+                  className="btn-continue-save btn-lg"
+                  onClick={() => applyLoadedSave(latestSave)}
+                >
+                  <Play size={20} /> 继续征战：{latestSave.label}
+                </button>
+              )}
+              <button
+                className="btn-primary-gold btn-lg"
+                onClick={() => handleStartNewGame(0)}
+              >
+                <Play size={20} /> 从头开始战役（第1关 → 第28关最终决战）
+              </button>
+            </div>
 
             <div className="title-stage-grid">
               {STAGES.map((st, idx) => (
@@ -389,6 +536,15 @@ export const App: React.FC = () => {
                 className="btn-ghost"
                 onClick={() => {
                   sound.playClick();
+                  setSaveModalOpen(true);
+                }}
+              >
+                <FolderOpen size={14} /> 档案管理（多槽读档 / .json 导入导出）
+              </button>
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  sound.playClick();
                   seedCampaignAtStage(STAGES.length - 1);
                   setScreen('camp');
                 }}
@@ -400,10 +556,8 @@ export const App: React.FC = () => {
         </div>
       </div>
     );
-  }
-
-  if (screen === 'camp') {
-    return (
+  } else if (screen === 'camp') {
+    pageContent = (
       <CampWorkshop
         materials={materials}
         mineStock={mineStock}
@@ -414,16 +568,30 @@ export const App: React.FC = () => {
         onCraftMine={handleCraftMine}
         onAssignMine={handleAssignMine}
         onPromoteUnit={handlePromoteUnit}
+        onOpenSaveModal={() => setSaveModalOpen(true)}
+        onBackToTitle={() => setScreen('title')}
         onStartNextStage={() => {
+          setLoadedBattleSnapshot(undefined);
+          liveBattleSnapshotRef.current = undefined;
+          writeSaveSlot('auto', {
+            label: buildSaveLabel('battle', stageIdx),
+            screen: 'battle',
+            stageIdx,
+            stageName: currentStage?.name ?? '',
+            materials,
+            mineStock,
+            unlockedMines,
+            promoBooks,
+            roster,
+          });
+          setSaveRev((r) => r + 1);
           setBattleKey((k) => k + 1);
           setScreen('battle');
         }}
       />
     );
-  }
-
-  if (screen === 'demo_complete') {
-    return (
+  } else if (screen === 'demo_complete') {
+    pageContent = (
       <div className="complete-screen">
         <div
           className="title-bg-art"
@@ -460,17 +628,71 @@ export const App: React.FC = () => {
         </div>
       </div>
     );
+  } else {
+    pageContent = (
+      <BattleScreen
+        key={`${currentStage.id}-${battleKey}`}
+        stage={currentStage}
+        carryOverRoster={stageIdx > 0 ? roster : undefined}
+        initialSnapshot={loadedBattleSnapshot}
+        hasNextStage={stageIdx + 1 < STAGES.length}
+        onVictory={handleBattleVictory}
+        onRestart={() => {
+          setLoadedBattleSnapshot(undefined);
+          liveBattleSnapshotRef.current = undefined;
+          setBattleKey((k) => k + 1);
+        }}
+        onOpenSaveModal={(snap) => {
+          liveBattleSnapshotRef.current = snap;
+          setSaveModalOpen(true);
+        }}
+        onAutoSaveSnapshot={(snap) => {
+          liveBattleSnapshotRef.current = snap;
+          writeSaveSlot('auto', {
+            label: buildSaveLabel('battle', stageIdx, snap),
+            screen: 'battle',
+            stageIdx,
+            stageName: currentStage?.name ?? '',
+            materials,
+            mineStock,
+            unlockedMines,
+            promoBooks,
+            roster,
+            battle: snap,
+          });
+        }}
+        onBackToTitle={() => {
+          setSaveRev((r) => r + 1);
+          setScreen('title');
+        }}
+      />
+    );
   }
 
   return (
-    <BattleScreen
-      key={`${currentStage.id}-${battleKey}`}
-      stage={currentStage}
-      carryOverRoster={stageIdx > 0 ? roster : undefined}
-      hasNextStage={stageIdx + 1 < STAGES.length}
-      onVictory={handleBattleVictory}
-      onRestart={() => setBattleKey((k) => k + 1)}
-    />
+    <>
+      {pageContent}
+      {saveModalOpen && (
+        <SaveLoadModal
+          canSaveCurrent={screen === 'camp' || screen === 'battle'}
+          currentSummary={
+            screen === 'camp' || screen === 'battle'
+              ? buildSaveLabel(
+                  screen === 'camp' ? 'camp' : 'battle',
+                  stageIdx,
+                  liveBattleSnapshotRef.current
+                )
+              : undefined
+          }
+          onSaveToSlot={handleSaveToSlot}
+          onLoadSaveData={applyLoadedSave}
+          onClose={() => {
+            setSaveRev((r) => r + 1);
+            setSaveModalOpen(false);
+          }}
+        />
+      )}
+    </>
   );
 };
 

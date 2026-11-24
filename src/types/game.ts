@@ -185,3 +185,31 @@ export type ScreenMode = 'title' | 'briefing' | 'battle' | 'camp' | 'demo_comple
 export type BattlePhase = 'player' | 'enemy' | 'dialogue' | 'victory' | 'defeat';
 
 export type ActionMode = 'select' | 'move' | 'attack' | 'mine' | 'heal_ally';
+
+export type SaveSlotId = 'auto' | 'slot1' | 'slot2' | 'slot3';
+
+export interface BattleSnapshot {
+  stageId: number;
+  turn: number;
+  units: Unit[];
+  mines: PlacedMine[];
+  rescued: boolean;
+  reinforcementsSpawned: boolean;
+  logs: string[];
+}
+
+export interface CampaignSaveData {
+  version: 1;
+  slotId: SaveSlotId;
+  savedAt: string;
+  label: string;
+  screen: 'camp' | 'battle';
+  stageIdx: number;
+  stageName: string;
+  materials: Record<MaterialId, number>;
+  mineStock: Record<MineType, number>;
+  unlockedMines: MineType[];
+  promoBooks: Record<PromoBookId, number>;
+  roster: Unit[];
+  battle?: BattleSnapshot;
+}

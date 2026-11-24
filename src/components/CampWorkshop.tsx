@@ -7,9 +7,11 @@ import {
   CheckCircle2,
   Hammer,
   Heart,
+  Home,
   Lock,
   Package,
   Play,
+  Save,
   Shield,
   Sparkles,
 } from 'lucide-react';
@@ -33,6 +35,8 @@ interface CampWorkshopProps {
   onAssignMine: (unitId: string, mineType: MineType, delta: 1 | -1) => void;
   onPromoteUnit: (unitId: string) => void;
   onStartNextStage: () => void;
+  onOpenSaveModal?: () => void;
+  onBackToTitle?: () => void;
 }
 
 export const CampWorkshop: React.FC<CampWorkshopProps> = ({
@@ -46,6 +50,8 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
   onAssignMine,
   onPromoteUnit,
   onStartNextStage,
+  onOpenSaveModal,
+  onBackToTitle,
 }) => {
   const [selectedHeroId, setSelectedHeroId] = useState<string>(roster[0]?.id ?? 'commander');
   const [promoNotice, setPromoNotice] = useState<string | null>(null);
@@ -85,16 +91,40 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
             <div className="camp-eyebrow">平阳抗日根据地 · 战前整备与兵种转职</div>
             <h1 className="camp-title">地雷工坊与部队晋升</h1>
           </div>
-          <button
-            className="btn-primary-gold"
-            onClick={() => {
-              sound.playClick();
-              onStartNextStage();
-            }}
-          >
-            <Play size={18} />
-            出击：{nextStageTitle}
-          </button>
+          <div className="camp-header-actions">
+            {onBackToTitle && (
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  sound.playClick();
+                  onBackToTitle();
+                }}
+              >
+                <Home size={15} /> 返回主页
+              </button>
+            )}
+            {onOpenSaveModal && (
+              <button
+                className="btn-ghost save-camp-btn"
+                onClick={() => {
+                  sound.playClick();
+                  onOpenSaveModal();
+                }}
+              >
+                <Save size={15} /> 存/读档
+              </button>
+            )}
+            <button
+              className="btn-primary-gold"
+              onClick={() => {
+                sound.playClick();
+                onStartNextStage();
+              }}
+            >
+              <Play size={18} />
+              出击：{nextStageTitle}
+            </button>
+          </div>
         </header>
 
         {/* Material Inventory Strip */}

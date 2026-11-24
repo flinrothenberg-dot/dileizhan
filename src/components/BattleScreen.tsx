@@ -5,7 +5,9 @@ import {
   Flag,
   Footprints,
   Heart,
+  Home,
   RotateCcw,
+  Save,
   Shield,
   SkipForward,
   Sparkles,
@@ -35,6 +37,7 @@ import {
   ActionMode,
   AttackFx,
   BattlePhase,
+  BattleSnapshot,
   DialogueLine,
   ExplosionFx,
   FloatingEffect,
@@ -53,9 +56,13 @@ import { TacticalTile } from './TacticalTile';
 interface BattleScreenProps {
   stage: StageConfig;
   carryOverRoster?: Unit[];
+  initialSnapshot?: BattleSnapshot;
   hasNextStage: boolean;
   onVictory: (survivingHeroes: Unit[]) => void;
   onRestart: () => void;
+  onOpenSaveModal?: (snapshot: BattleSnapshot) => void;
+  onAutoSaveSnapshot?: (snapshot: BattleSnapshot) => void;
+  onBackToTitle?: () => void;
 }
 
 const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -95,37 +102,53 @@ function hydrateHeroUnit(u: Unit, carryOverRoster?: Unit[]): Unit {
 export const BattleScreen: React.FC<BattleScreenProps> = ({
   stage,
   carryOverRoster,
+  initialSnapshot,
   hasNextStage,
   onVictory,
   onRestart,
+  onOpenSaveModal,
+  onAutoSaveSnapshot,
+  onBackToTitle,
 }) => {
-  // Initialize units (merging carry-over stats/mines for Stage 2+)
+  // Initialize units (from mid-battle snapshot OR merging carry-over stats/mines for Stage 2+)
   const [units, setUnits] = useState<Unit[]>(() =>
-    stage.initialUnits.map((u) => hydrateHeroUnit(u, carryOverRoster))
+    initialSnapshot
+      ? initialSnapshot.units.map((u) => ({ ...u, mines: { ...u.mines } }))
+      : stage.initialUnits.map((u) => hydrateHeroUnit(u, carryOverRoster))
   );
 
-  const [mines, setMines] = useState<PlacedMine[]>([]);
-  const [turn, setTurn] = useState(1);
-  const [phase, setPhase] = useState<BattlePhase>('dialogue');
+  const [mines, setMines] = useState<PlacedMine[]>(() =>
+    initialSnapshot ? initialSnapshot.mines.map((m) => ({ ...m })) : []
+  );
+  const [turn, setTurn] = useState(initialSnapshot ? initialSnapshot.turn : 1);
+  const [phase, setPhase] = useState<BattlePhase>(initialSnapshot ? 'player' : 'dialogue');
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const [actionMode, setActionMode] = useState<ActionMode>('select');
   const [selectedMineType, setSelectedMineType] = useState<MineType>('tu_lei');
   const [hoveredTile, setHoveredTile] = useState<GridPoint>({ x: 0, y: 0 });
-  const [dialogueQueue, setDialogueQueue] = useState<DialogueLine[]>(stage.introDialogues);
+  const [dialogueQueue, setDialogueQueue] = useState<DialogueLine[]>(
+    initialSnapshot ? [] : stage.introDialogues
+  );
   const [dialogueIdx, setDialogueIdx] = useState(0);
   const [afterDialoguePhase, setAfterDialoguePhase] = useState<BattlePhase>('player');
-  const [battleLog, setBattleLog] = useState<string[]>([
-    `【${stage.code}】${stage.name} 打响！`,
-  ]);
+  const [battleLog, setBattleLog] = useState<string[]>(() =>
+    initialSnapshot?.logs?.length
+      ? initialSnapshot.logs
+      : [`【${stage.code}】${stage.name} 打响！`]
+  );
   const [floats, setFloats] = useState<FloatingEffect[]>([]);
   const [explosions, setExplosions] = useState<ExplosionFx[]>([]);
   const [attackFxs, setAttackFxs] = useState<AttackFx[]>([]);
   const [shaking, setShaking] = useState(false);
   const [chainBanner, setChainBanner] = useState<string | null>(null);
   const [muted, setMuted] = useState(sound.muted);
-  const [rescued, setRescued] = useState(false);
-  const [reinforcementsSpawned, setReinforcementsSpawned] = useState(false);
-  const reinforcementsSpawnedRef = useRef(false);
+  const [rescued, setRescued] = useState(initialSnapshot ? initialSnapshot.rescued : false);
+  const [reinforcementsSpawned, setReinforcementsSpawned] = useState(
+    initialSnapshot ? initialSnapshot.reinforcementsSpawned : false
+  );
+  const reinforcementsSpawnedRef = useRef(
+    initialSnapshot ? initialSnapshot.reinforcementsSpawned : false
+  );
   const [busy, setBusy] = useState(false);
   const [preMovePos, setPreMovePos] = useState<{ unitId: string; x: number; y: number } | null>(null);
   const [detailUnitId, setDetailUnitId] = useState<string | null>(null);
@@ -134,6 +157,34 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
   unitsRef.current = units;
   const minesRef = useRef(mines);
   minesRef.current = mines;
+
+  const buildSnapshot = useCallback((): BattleSnapshot => {
+    const cleanUnits = unitsRef.current.map((u) =>
+      preMovePos && preMovePos.unitId === u.id
+        ? { ...u, x: preMovePos.x, y: preMovePos.y, moved: false, mines: { ...u.mines } }
+        : { ...u, mines: { ...u.mines } }
+    );
+    return {
+      stageId: stage.id,
+      turn,
+      units: cleanUnits,
+      mines: minesRef.current.map((m) => ({ ...m })),
+      rescued,
+      reinforcementsSpawned: reinforcementsSpawnedRef.current,
+      logs: battleLog,
+    };
+  }, [battleLog, preMovePos, rescued, stage.id, turn]);
+
+  const lastAutoSavedKeyRef = useRef<string>('');
+  useEffect(() => {
+    if (phase === 'player' && !busy && onAutoSaveSnapshot) {
+      const key = `${stage.id}-${turn}-${rescued ? 1 : 0}`;
+      if (lastAutoSavedKeyRef.current !== key) {
+        lastAutoSavedKeyRef.current = key;
+        onAutoSaveSnapshot(buildSnapshot());
+      }
+    }
+  }, [buildSnapshot, busy, onAutoSaveSnapshot, phase, rescued, stage.id, turn]);
 
   const addLog = useCallback((msg: string) => {
     setBattleLog((prev) => [msg, ...prev].slice(0, 30));
@@ -1346,6 +1397,34 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           <button className="icon-btn" title="重开本关" onClick={onRestart}>
             <RotateCcw size={16} />
           </button>
+          {onOpenSaveModal && (
+            <button
+              className="btn-save-hud"
+              disabled={phase === 'enemy' || busy}
+              title="随时手动存/读当前战局进度（S/L）"
+              onClick={() => {
+                sound.playClick();
+                onOpenSaveModal(buildSnapshot());
+              }}
+            >
+              <Save size={15} /> 存/读档
+            </button>
+          )}
+          {onBackToTitle && (
+            <button
+              className="icon-btn"
+              title="返回主界面"
+              onClick={() => {
+                sound.playClick();
+                if (onAutoSaveSnapshot && phase === 'player' && !busy) {
+                  onAutoSaveSnapshot(buildSnapshot());
+                }
+                onBackToTitle();
+              }}
+            >
+              <Home size={16} />
+            </button>
+          )}
           <button
             className={`btn-end-turn ${allPlayersActed ? 'pulse-gold' : ''}`}
             disabled={phase !== 'player' || busy}
