@@ -25,6 +25,10 @@ import pJinhuapo from '../assets/portrait-jinhuapo.jpg';
 import pKmtOfficer from '../assets/portrait-kmt-officer.jpg';
 import pPeter from '../assets/portrait-peter.jpg';
 import pEnemySpy from '../assets/portrait-enemy-spy.jpg';
+import pLizheng from '../assets/portrait-lizheng.jpg';
+import pQianyusen from '../assets/portrait-qianyusen.jpg';
+import pYamada from '../assets/portrait-yamada.jpg';
+import pHashimoto from '../assets/portrait-hashimoto.jpg';
 
 interface CharacterPortraitProps {
   portraitId: string;
@@ -53,8 +57,12 @@ const PORTRAIT_FILES: Record<string, string> = {
   jinhuapo: pJinhuapo,
   kmt_officer: pKmtOfficer,
   peter: pPeter,
+  lizheng: pLizheng,
+  qianyusen: pQianyusen,
   gaojingtian: pGaojingtian,
   matsui: pMatsui,
+  yamada: pYamada,
+  hashimoto: pHashimoto,
   enemy_officer: pEnemyOfficer,
   enemy_puppet: pEnemyPuppet,
   enemy_sapper: pEnemySapper,

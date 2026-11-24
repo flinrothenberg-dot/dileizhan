@@ -42,6 +42,18 @@ import uEnemyTank from '../assets/unit-enemy_tank.png';
 import uEnemyArmored from '../assets/unit-enemy_armored.png';
 import uEnemyBunker from '../assets/unit-enemy_bunker.png';
 import uEnemySpy from '../assets/unit-enemy_spy.png';
+import uQianyusen from '../assets/unit-qianyusen.png';
+import uVillager from '../assets/unit-villager.png';
+import uElder from '../assets/unit-elder.png';
+import uYamada from '../assets/unit-yamada.png';
+import uBandit from '../assets/unit-bandit.png';
+import uRebel from '../assets/unit-rebel.png';
+import uTurncoat from '../assets/unit-turncoat.png';
+import uKmtCav from '../assets/unit-kmt_cav.png';
+import uEnemyHowitzer from '../assets/unit-enemy_howitzer.png';
+import uEnemyTruck from '../assets/unit-enemy_truck.png';
+import uEnemyDog from '../assets/unit-enemy_dog.png';
+import uEnemyDepot from '../assets/unit-enemy_depot.png';
 
 interface TacticalTileProps {
   x: number;
@@ -100,6 +112,18 @@ export const UNIT_SPRITE_MAP: Record<string, string> = {
   enemy_armored: uEnemyArmored,
   enemy_bunker: uEnemyBunker,
   enemy_spy: uEnemySpy,
+  qianyusen: uQianyusen,
+  villager: uVillager,
+  elder: uElder,
+  yamada: uYamada,
+  bandit: uBandit,
+  rebel: uRebel,
+  turncoat: uTurncoat,
+  kmt_cav: uKmtCav,
+  enemy_howitzer: uEnemyHowitzer,
+  enemy_truck: uEnemyTruck,
+  enemy_dog: uEnemyDog,
+  enemy_depot: uEnemyDepot,
   promo_shuangqiang: uLixiangyang,
   promo_chongfeng: uShigengxin,
   promo_wushudui: uPromoWushudui,
@@ -121,10 +145,15 @@ function getUnitSpriteSrc(unit: Unit): string {
     return UNIT_SPRITE_MAP[unit.portraitId] ?? uCommander;
   }
   if (unit.portraitId === 'gaojingtian') return uGaojingtian;
-  if (unit.portraitId === 'matsui') return uMatsui;
+  if (unit.portraitId === 'matsui' || unit.portraitId === 'hashimoto') return uMatsui;
   if (unit.portraitId === 'enemy_spy') return uEnemySpy;
+  if (unit.portraitId === 'yamada') return uYamada;
+  if (unit.unitClass === '重榴炮' || unit.unitClass === '炮兵阵') return uEnemyHowitzer;
+  if (unit.unitClass === '军火堡垒') return uEnemyDepot;
   if (unit.unitClass === '坦克队' || unit.unitClass === '战车') return uEnemyTank;
   if (unit.unitClass === '铁甲列车' || unit.unitClass === '装甲车') return uEnemyArmored;
+  if (unit.unitClass === '装甲卡车') return uEnemyTruck;
+  if (unit.unitClass === '警犬队' || unit.unitClass === '伪警所') return uEnemyDog;
   if (unit.unitClass === '炮楼') return uEnemyBunker;
   if (unit.isBoss) return uEnemyOfficer;
   if (unit.isSapper) return uEnemySapper;

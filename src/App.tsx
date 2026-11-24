@@ -38,24 +38,27 @@ function buildRosterForStage(stageNumber: number): Unit[] {
       bonusMines.chongtian_pao = 1;
     }
     if (stageNumber >= 7 && k === 'zhaohu') {
+      bonusMines.cidian_lei = 1;
+    }
+    if (stageNumber >= 9 && k === 'zhaohu') {
       bonusMines.zhangqi_lei = 1;
     }
-    if (stageNumber >= 10 && k === 'commander') {
+    if (stageNumber >= 18 && k === 'commander') {
       bonusMines.yaokong_lei = 1;
     }
 
-    // Calibrate starting experience/level when jumping directly into later stages
+    // Calibrate starting experience/level across 28 canonical stages
     let level = base.level;
     let maxHp = base.maxHp;
     let atk = base.atk;
     let def = base.def;
-    const minStageLv = stageNumber >= 3 ? Math.min(11, stageNumber) : base.level;
+    const minStageLv =
+      stageNumber >= 3 ? Math.min(12, Math.max(base.level, Math.round(2 + stageNumber * 0.36))) : base.level;
     if (minStageLv > level) {
       const diff = minStageLv - level;
       level = minStageLv;
       maxHp += diff * 11;
-      atk += diff * 3.5;
-      atk = Math.round(atk);
+      atk = Math.round(atk + diff * 3.5);
       def += Math.floor(diff * 1.6);
     }
 
@@ -103,31 +106,42 @@ function getBooksForStageEntry(stageNumber: number): Record<PromoBookId, number>
     books.huoqi_jichu += 1;
     books.mashu_jingdian += 1;
   }
-  if (stageNumber >= 7) {
-    books.yezhan_xinfa += 1;
-    books.hongjin += 1;
-  }
-  if (stageNumber >= 8) {
-    books.junqi += 1;
-    books.mashu_jingdian += 1;
-  }
-  if (stageNumber >= 9) {
-    books.youji_xinfa += 1;
-    books.qiangxie_jingdian += 1;
-    books.huoqi_jingdian += 1;
-  }
-  if (stageNumber >= 10) {
-    books.wugong_xinfa += 1;
-    books.youji_xinfa += 1;
-  }
+  if (stageNumber >= 7) books.yezhan_xinfa += 1;
+  if (stageNumber >= 8) books.hongjin += 1;
+  if (stageNumber >= 9) books.junqi += 1;
+  if (stageNumber >= 10) books.mashu_jingdian += 1;
   if (stageNumber >= 11) {
-    books.qiangxie_jingdian += 1;
+    books.youji_xinfa += 1;
     books.huoqi_jingdian += 1;
   }
   if (stageNumber >= 12) {
-    books.zhanshu_jingdian += 2;
-    books.huoqi_jingdian += 1;
+    books.youji_xinfa += 1;
+    books.wugong_xinfa += 1;
+  }
+  if (stageNumber >= 13) {
+    books.qiangxie_jichu += 1;
     books.qiangxie_jingdian += 1;
+  }
+  if (stageNumber >= 15) {
+    books.wugong_xinfa += 1;
+    books.mashu_jingdian += 1;
+  }
+  if (stageNumber >= 17) books.zhanshu_jingdian += 1;
+  if (stageNumber >= 19) books.qiangxie_jingdian += 1;
+  if (stageNumber >= 21) books.youji_xinfa += 1;
+  if (stageNumber >= 23) {
+    books.qiangxie_jingdian += 1;
+    books.zhanshu_jingdian += 1;
+  }
+  if (stageNumber >= 25) {
+    books.huoqi_jingdian += 1;
+    books.zhanshu_jingdian += 1;
+    books.mashu_jingdian += 1;
+  }
+  if (stageNumber >= 27) {
+    books.wugong_xinfa += 1;
+    books.qiangxie_jingdian += 2;
+    books.zhanshu_jingdian += 1;
   }
   return books;
 }
@@ -172,9 +186,9 @@ export const App: React.FC = () => {
         xiezi_lei: stageNum >= 4 ? 2 : 0,
         yinfa_lei: stageNum >= 5 ? 2 : 0,
         chongtian_pao: stageNum >= 6 ? 2 : 0,
-        cidian_lei: stageNum >= 6 ? 2 : 0,
-        zhangqi_lei: stageNum >= 7 ? 2 : 0,
-        yaokong_lei: stageNum >= 10 ? 2 : 0,
+        cidian_lei: stageNum >= 7 ? 2 : 0,
+        zhangqi_lei: stageNum >= 9 ? 2 : 0,
+        yaokong_lei: stageNum >= 18 ? 2 : 0,
       })
     );
   };
@@ -190,10 +204,11 @@ export const App: React.FC = () => {
     const nextIdx = stageIdx + 1;
     const nextStageNum = STAGES[nextIdx]?.id ?? currentStage.id;
 
-    // Merge hero progression (including promoted class/sprite) + add newly joined heroes
+    // Merge hero progression (skip transient VIP escort NPCs such as Qian Yusen / villagers / Li Zheng)
     setRoster((prev) => {
       const map = new Map<string, Unit>(prev.map((u) => [u.id, u]));
       for (const h of survivingHeroes) {
+        if (!INITIAL_HERO_ROSTER[h.id]) continue;
         map.set(h.id, { ...h, hp: h.maxHp, acted: false, moved: false, isCaptive: false });
       }
       const nextKeys = HERO_UNLOCK_ORDER[nextStageNum] ?? [];
@@ -326,21 +341,21 @@ export const App: React.FC = () => {
 
         <div className="title-content">
           <div className="title-badge">
-            <Sparkles size={14} /> 1998 金山西山居经典战棋 · 十二关全战役高清重制版
+            <Sparkles size={14} /> 1998 金山西山居经典战棋 · 全二十八关完全未删减高清版
           </div>
           <h1 className="game-logo">
             抗日<span>：</span>地雷战
           </h1>
           <p className="game-tagline">
-            1942-1943 冀中平阳 · 22位抗日群英集结 · 十大名雷研制 · 原版攻击范围转职晋升
+            1942-1943 冀中平阳 · 34位抗日群英集结 · 十大名雷 · 原版全线剧情一关不缩水
           </p>
 
           <div className="title-features">
             <span>
-              <Bomb size={15} /> 全十二关原版剧情台词
+              <Bomb size={15} /> 全二十八关完整还原
             </span>
             <span>
-              <Shield size={15} /> 兵书+等级双条件多阶转职
+              <Shield size={15} /> 护送/潜伏/统战/四连攻城
             </span>
             <span>
               <Compass size={15} /> 4向/8向/12向/远射溅射升级
@@ -352,7 +367,7 @@ export const App: React.FC = () => {
               className="btn-primary-gold btn-lg"
               onClick={() => handleStartNewGame(0)}
             >
-              <Play size={20} /> 从头开始战役（第一关 → 第十二关终战）
+              <Play size={20} /> 从头开始战役（第1关 → 第28关最终决战）
             </button>
 
             <div className="title-stage-grid">
@@ -374,11 +389,11 @@ export const App: React.FC = () => {
                 className="btn-ghost"
                 onClick={() => {
                   sound.playClick();
-                  seedCampaignAtStage(11);
+                  seedCampaignAtStage(STAGES.length - 1);
                   setScreen('camp');
                 }}
               >
-                <Wrench size={14} /> 直接体验：全十大名雷工坊与终极转职（第12关总攻前整备）
+                <Wrench size={14} /> 直接体验：全十大名雷工坊与终极转职（第28关最终决战前整备）
               </button>
             </div>
           </div>
@@ -417,13 +432,13 @@ export const App: React.FC = () => {
         <div className="title-vignette" />
         <div className="complete-card">
           <Award size={48} className="complete-icon" />
-          <div className="camp-eyebrow">十二关全战役 · 圆满光复平阳县城</div>
+          <div className="camp-eyebrow">全二十八关完全未删减版 · 光复平阳全境</div>
           <h1>平阳大捷！正式改编为冀中军区独立团！</h1>
           <p>
-            你已率领游击大队长、朱老忠、赵虎、张嘎、李向阳、九爷、雷石柱、林嫂、雨来、魏强、刘洪、金花婆、方仲雄、彼得中尉与陈怀忠等 22 位抗日英雄，历尽十二场血战——粉碎高敬天、谷寿夫、武藤信义、川岛芳子、德川好敏，直至攻克日军平阳总司令部生擒桥本、击毙松井石根！
+            你已率领游击大队长、朱老忠、赵虎、张嘎、李向阳、九爷、雷石柱、林嫂、雨来、魏强、刘洪、鲁汉、康伯充、吴海、郑之光、金花婆、方仲雄、向氏兄弟、彼得中尉、田大山、黄成杰、杨铁山、周亮、陈怀忠、傅正明与唐联西等 34 位抗日英雄，历尽二十八场完整战役——从护送钱宇森科学家、奇袭火车、黑风寨借路、救护施南百姓、斩杀山田川岛，直到连破军火库、军营、县城巷战并最终击毙桥本群攻克日军总司令部！
           </p>
           <p className="complete-next-note">
-            土/伪/石/铁/蝎/引发/冲天炮/磁电/瘴气/遥控十大名雷体系 + 1998 原版多阶转职升级（含4邻格→斜角8格→12向矩阵及射程溅射全面进化）已全数呈现！
+            1998 金山西山居《抗日：地雷战》全 28 关支线主线一关不漏 + 十大名雷 + 原版多阶攻击范围转职系统全数通关！
           </p>
           <div className="complete-btns">
             <button
@@ -439,7 +454,7 @@ export const App: React.FC = () => {
                 setScreen('title');
               }}
             >
-              返回主界面（十二关任选挑战）
+              返回主界面（28关任选重温）
             </button>
           </div>
         </div>
