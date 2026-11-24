@@ -73,6 +73,8 @@ function hydrateHeroUnit(u: Unit, carryOverRoster?: Unit[]): Unit {
         title: saved.title,
         spriteId: saved.spriteId,
         weaponName: saved.weaponName,
+        attackShape: saved.attackShape ?? u.attackShape,
+        splashRatio: saved.splashRatio ?? u.splashRatio,
         move: saved.move,
         rangeMax: saved.rangeMax,
         critRate: saved.critRate,
@@ -380,17 +382,26 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       for (let i = 0; i < chain.length; i++) {
         const m = chain[i];
         const mDef = MINES[m.type];
-        sound.playExplosion(m.type === 'shi_lei' || chain.length >= 2);
-        spawnExplosion(m.x, m.y, m.type === 'shi_lei' ? 'large' : 'normal');
+        const isLarge =
+          m.type === 'shi_lei' ||
+          m.type === 'chongtian_pao' ||
+          m.type === 'yaokong_lei' ||
+          m.type === 'zhangqi_lei' ||
+          chain.length >= 2;
+        sound.playExplosion(isLarge);
+        spawnExplosion(m.x, m.y, isLarge ? 'large' : 'normal');
 
         setMines((prev) =>
           prev.map((item) => (item.id === m.id ? { ...item, triggered: true } : item))
         );
 
-        // Apply direct + splash damage (+ scorpion poison if applicable)
+        // Apply direct + splash + status effects (poison / EMP stun / remote area burst)
         const directDmg = mDef.damage;
         const splashDmg = mDef.splashDamage > 0 ? mDef.splashDamage : chain.length >= 2 ? 22 : 0;
+        const splashRadius = mDef.splashRadius ?? 1;
         const poisonTurns = mDef.poisonTurns ?? 0;
+        const stunTurns = mDef.stunTurns ?? 0;
+        const isRemoteTrigger = victimId === '__remote__';
         let mineExpEarned = 0;
 
         const nextUnits = unitsRef.current.map((u) => {
@@ -404,32 +415,68 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
               poisonTurns > 0 && newHp > 0
                 ? Math.max(u.poisonedTurns ?? 0, poisonTurns)
                 : u.poisonedTurns ?? 0;
+            const nextStun =
+              stunTurns > 0 && newHp > 0
+                ? Math.max(u.stunnedTurns, stunTurns)
+                : u.stunnedTurns;
             spawnFloat(
               u.x,
               u.y,
-              poisonTurns > 0 ? `蝎毒爆 -${dmg}` : `踩雷 -${dmg}`,
+              stunTurns > 0
+                ? `⚡ 麻痹 -${dmg}`
+                : poisonTurns > 0
+                ? `☠ 中毒 -${dmg}`
+                : `踩雷 -${dmg}`,
               poisonTurns > 0 ? 'poison' : i > 0 ? 'chain' : 'mine'
             );
             addLog(
-              `💥 ${u.name} 踩中【${mDef.name}】受到 ${dmg} 点爆炸伤害${
+              `💥 ${u.name} 遭【${mDef.name}】正面命中受到 ${dmg} 点伤害${
                 newHp === 0
                   ? '，当场被炸飞！'
+                  : stunTurns > 0
+                  ? '，高压麻痹停顿 1 回合！'
                   : poisonTurns > 0
-                  ? '，并身中蝎毒持续掉血！'
+                  ? '，并身中剧毒持续掉血！'
                   : '！'
               }`
             );
-            return { ...u, hp: newHp, alive: newHp > 0, poisonedTurns: nextPoison };
-          } else if (dist === 1 && splashDmg > 0) {
-            const newHp = Math.max(0, u.hp - splashDmg);
-            mineExpEarned += newHp === 0 ? 45 : 20;
-            spawnFloat(u.x, u.y, `溅射 -${splashDmg}`, 'mine');
+            return {
+              ...u,
+              hp: newHp,
+              alive: newHp > 0,
+              poisonedTurns: nextPoison,
+              stunnedTurns: nextStun,
+            };
+          } else if (dist > 0 && dist <= splashRadius && (splashDmg > 0 || isRemoteTrigger)) {
+            const hitDmg = isRemoteTrigger && dist === 1 ? Math.max(splashDmg, Math.round(directDmg * 0.78)) : splashDmg;
+            const newHp = Math.max(0, u.hp - hitDmg);
+            mineExpEarned += newHp === 0 ? 45 : 22;
+            const nextPoison =
+              poisonTurns > 0 && newHp > 0
+                ? Math.max(u.poisonedTurns ?? 0, Math.max(1, poisonTurns - 1))
+                : u.poisonedTurns ?? 0;
+            const nextStun =
+              stunTurns > 0 && dist === 1 && newHp > 0
+                ? Math.max(u.stunnedTurns, stunTurns)
+                : u.stunnedTurns;
+            spawnFloat(
+              u.x,
+              u.y,
+              isRemoteTrigger ? `遥控爆破 -${hitDmg}` : poisonTurns > 0 ? `毒雾 -${hitDmg}` : `溅射 -${hitDmg}`,
+              poisonTurns > 0 ? 'poison' : 'mine'
+            );
             addLog(
-              `💥 ${u.name} 遭【${mDef.name}】碎片波及 -${splashDmg}${
+              `💥 ${u.name} 遭【${mDef.name}】气浪波及 -${hitDmg}${
                 newHp === 0 ? '，阵亡！' : '！'
               }`
             );
-            return { ...u, hp: newHp, alive: newHp > 0 };
+            return {
+              ...u,
+              hp: newHp,
+              alive: newHp > 0,
+              poisonedTurns: nextPoison,
+              stunnedTurns: nextStun,
+            };
           }
           return u;
         });
@@ -558,7 +605,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [actionMode, busy, detailUnitId, handleUndoMove, phase, preMovePos, selectedUnitId]);
 
-  // Player attacks an enemy
+  // Player attacks an enemy (supports splashRatio cleave/blast for promoted & heavy classes!)
   const handleAttack = async (attacker: Unit, target: Unit) => {
     setBusy(true);
     const terrain = stage.tiles[target.y][target.x];
@@ -579,8 +626,35 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       }${newHp === 0 ? '，将其击毙！' : ''}`
     );
 
+    const splashMap = new Map<string, number>();
+    let splashKills = 0;
+    if (attacker.splashRatio && attacker.splashRatio > 0) {
+      for (const other of unitsRef.current) {
+        if (
+          other.alive &&
+          other.faction === 'enemy' &&
+          other.id !== target.id &&
+          manhattan(other, target) === 1
+        ) {
+          const sDmg = Math.max(8, Math.round(damage * attacker.splashRatio));
+          splashMap.set(other.id, sDmg);
+          const sHp = Math.max(0, other.hp - sDmg);
+          if (sHp === 0) splashKills += 1;
+          spawnFloat(other.x, other.y, `波及 -${sDmg}`, 'mine');
+          addLog(
+            `💥 ${attacker.name} 攻击余威波及 ${other.name} -${sDmg}${sHp === 0 ? '，顺势击毙！' : '！'}`
+          );
+        }
+      }
+    }
+
     const updated = unitsRef.current.map((u) => {
       if (u.id === target.id) return { ...u, hp: newHp, alive: newHp > 0 };
+      const sDmg = splashMap.get(u.id);
+      if (sDmg !== undefined) {
+        const sHp = Math.max(0, u.hp - sDmg);
+        return { ...u, hp: sHp, alive: sHp > 0 };
+      }
       if (u.id === attacker.id) {
         return {
           ...u,
@@ -595,7 +669,7 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     setUnits(updated);
 
     await delay(280);
-    awardExp(attacker.id, newHp === 0 ? 75 : 35);
+    awardExp(attacker.id, (newHp === 0 ? 75 : 35) + splashKills * 35);
 
     const end = checkBattleEnd(updated);
     setBusy(false);
@@ -735,13 +809,13 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
       let enemy = unitsRef.current.find((u) => u.id === eid && u.alive);
       if (!enemy) continue;
 
-      // Scorpion mine poison tick before action
+      // Poison tick before action (蝎子雷 / 瘴气雷)
       if ((enemy.poisonedTurns ?? 0) > 0) {
-        const pDmg = 18;
+        const pDmg = 20;
         const afterHp = Math.max(0, enemy.hp - pDmg);
-        spawnFloat(enemy.x, enemy.y, `蝎毒 -${pDmg}`, 'poison');
+        spawnFloat(enemy.x, enemy.y, `雷毒 -${pDmg}`, 'poison');
         addLog(
-          `🦂 ${enemy.name} 蝎子雷剧毒发作失去 ${pDmg} 点生命${
+          `☠ ${enemy.name} 雷毒发作失去 ${pDmg} 点生命${
             afterHp === 0 ? '，毒发身亡！' : '！'
           }`
         );
@@ -771,10 +845,10 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         if (!enemy) continue;
       }
 
-      // Check stun from decoy mine
+      // Check stun from decoy / magnetic EMP mine
       if (enemy.stunnedTurns > 0) {
-        spawnFloat(enemy.x, enemy.y, '惊魂未定...', 'info');
-        addLog(`😵 ${enemy.name} 仍被假地雷吓得不敢轻举妄动！`);
+        spawnFloat(enemy.x, enemy.y, '麻痹停顿...', 'info');
+        addLog(`😵 ${enemy.name} 被雷威震慑/麻痹，本回合无法行动！`);
         const decStun = unitsRef.current.map((u) =>
           u.id === eid ? { ...u, stunnedTurns: u.stunnedTurns - 1 } : u
         );
@@ -784,10 +858,14 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
         continue;
       }
 
-      // Sapper Mine Detection Scan (radius 2)
+      // Sapper Mine Detection Scan (radius 2; ignores stealth yaokong_lei!)
       if (enemy.isSapper) {
         const spotted = minesRef.current.filter(
-          (m) => !m.triggered && !m.detected && manhattan(enemy, m) <= 2
+          (m) =>
+            !m.triggered &&
+            !m.detected &&
+            !MINES[m.type].stealthToSapper &&
+            manhattan(enemy, m) <= 2
         );
         if (spotted.length > 0) {
           sound.playDetectorBeep();
@@ -1046,16 +1124,54 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return activeHeroes.length > 0 && activeHeroes.every((u) => u.acted);
   }, [units]);
 
+  const handleTriggerRemoteMines = async (targetMine?: PlacedMine) => {
+    if (phase !== 'player' || busy) return;
+    const remotes = targetMine
+      ? [targetMine]
+      : minesRef.current.filter((m) => !m.triggered && MINES[m.type].remoteDetonate);
+    if (remotes.length === 0) return;
+
+    setBusy(true);
+    sound.playDetectorBeep();
+    addLog(`📡 启动美式无线电引信，主动引爆 ${remotes.length} 枚【遥控雷】！`);
+    for (const rm of remotes) {
+      if (minesRef.current.some((m) => m.id === rm.id && !m.triggered)) {
+        await detonateMineAt(rm, '__remote__');
+      }
+    }
+    const end = checkBattleEnd(unitsRef.current);
+    setBusy(false);
+    if (end === 'victory') {
+      sound.playVictory();
+      openDialogue(stage.victoryDialogues, 'victory');
+    } else if (end === 'defeat') {
+      setPhase('defeat');
+    }
+  };
+
   // Tile click handler
   const handleTileClick = (x: number, y: number) => {
     setHoveredTile({ x, y });
     if (phase !== 'player' || busy) return;
     const k = keyOf(x, y);
     const clickedUnit = units.find((u) => u.alive && u.x === x && u.y === y);
+    const clickedMine = activeMineMap.get(k);
 
     // 1. Mine placement mode
     if (actionMode === 'mine' && selectedUnit && mineableSet.has(k)) {
       handleLayMine(selectedUnit, x, y);
+      return;
+    }
+
+    // 1b. Remote mine click-to-detonate when clicking placed yaokong_lei (non-move collision)
+    if (
+      clickedMine &&
+      MINES[clickedMine.type].remoteDetonate &&
+      actionMode !== 'mine' &&
+      !clickedUnit &&
+      !reachData.tiles.has(k)
+    ) {
+      handleTriggerRemoteMines(clickedMine);
       return;
     }
 
@@ -1157,6 +1273,11 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
     return map;
   }, [mines]);
 
+  const activeRemoteMines = useMemo(
+    () => mines.filter((m) => !m.triggered && MINES[m.type].remoteDetonate),
+    [mines]
+  );
+
   const enemyCount = units.filter((u) => u.faction === 'enemy' && u.alive).length;
   const hoveredTerrain = TERRAIN_META[stage.tiles[hoveredTile.y]?.[hoveredTile.x] ?? 'grass'];
 
@@ -1202,6 +1323,16 @@ export const BattleScreen: React.FC<BattleScreenProps> = ({
           <div className="hud-chip enemy-chip">
             剩余敌军：{enemyCount}
           </div>
+          {activeRemoteMines.length > 0 && (
+            <button
+              className="btn-end-turn pulse-gold"
+              disabled={phase !== 'player' || busy}
+              title="引爆所有已埋设的遥控雷（也可直接点击雷格）"
+              onClick={() => handleTriggerRemoteMines()}
+            >
+              <Sparkles size={15} /> 遥控引爆 ({activeRemoteMines.length})
+            </button>
+          )}
           <button
             className="icon-btn"
             title={muted ? '开启音效' : '静音'}

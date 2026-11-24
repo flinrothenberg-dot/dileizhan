@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Bomb, Crosshair, Footprints, Heart, Shield, Sparkles, Sword, X } from 'lucide-react';
 import { ALL_MINE_TYPES, MINES, TERRAIN_META } from '../data/mines';
-import { getUnitCritRate } from '../engine/tactics';
+import { getAttackShapeLabel, getUnitCritRate } from '../engine/tactics';
 import { TerrainType, Unit } from '../types/game';
 import { CharacterPortrait } from './CharacterPortrait';
 
@@ -104,17 +104,15 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
           </div>
           <div className="detail-stat-box">
             <Crosshair size={15} className="stat-ico rng-ico" />
-            <span className="stat-name">攻击射程</span>
-            <strong className="stat-val">
-              {unit.rangeMin === unit.rangeMax
-                ? `${unit.rangeMax} 格`
-                : `${unit.rangeMin} ~ ${unit.rangeMax} 格`}
-            </strong>
+            <span className="stat-name">攻击范围与射程</span>
+            <strong className="stat-val">{getAttackShapeLabel(unit)}</strong>
           </div>
           <div className="detail-stat-box">
             <Sparkles size={15} className="stat-ico crit-ico" />
-            <span className="stat-name">暴击率</span>
-            <strong className="stat-val">{critRate}%</strong>
+            <span className="stat-name">暴击 / 溅射</span>
+            <strong className="stat-val">
+              {critRate}%{unit.splashRatio ? ` / 溅${Math.round(unit.splashRatio * 100)}%` : ''}
+            </strong>
           </div>
           <div className="detail-stat-box">
             <Heart size={15} className="stat-ico hp-ico" />

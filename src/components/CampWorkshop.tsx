@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { ALL_MATERIAL_IDS, ALL_MINE_TYPES, MATERIALS, MINES } from '../data/mines';
 import { ALL_PROMO_BOOK_IDS, getNextPromotion, PROMO_BOOKS } from '../data/promotions';
-import { getTotalMines } from '../engine/tactics';
+import { getAttackShapeLabel, getTotalMines } from '../engine/tactics';
 import { MaterialId, MineType, PromoBookId, Unit } from '../types/game';
 import { sound } from '../utils/sound';
 import { CharacterPortrait } from './CharacterPortrait';
@@ -155,7 +155,7 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
             <div className="card-header">
               <Hammer size={18} />
               <h2>土法造雷工坊</h2>
-              <span className="card-hint">消耗材料研制六大名雷，存入仓库</span>
+              <span className="card-hint">消耗材料研制十大名雷，存入仓库</span>
             </div>
 
             <div className="mine-craft-list">
@@ -285,8 +285,11 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                         <Shield size={13} /> 攻 {selectedHero.atk} / 防 {selectedHero.def}
                       </span>
                       <span>
-                        移动 {selectedHero.move} 格 · 射程 {selectedHero.rangeMin}-
-                        {selectedHero.rangeMax}
+                        {getAttackShapeLabel(selectedHero)}
+                        {selectedHero.splashRatio
+                          ? ` · 溅射${Math.round(selectedHero.splashRatio * 100)}%`
+                          : ''}
+                        {' '}· 移动 {selectedHero.move}
                       </span>
                     </div>
                   </div>
@@ -327,6 +330,15 @@ export const CampWorkshop: React.FC<CampWorkshopProps> = ({
                           {nextPromo.bonus.move && <span>移动 +{nextPromo.bonus.move}</span>}
                           {nextPromo.bonus.rangeMax && (
                             <span>射程 +{nextPromo.bonus.rangeMax}</span>
+                          )}
+                          {nextPromo.toAttackShape === 'box_8' && (
+                            <span>★ 解锁斜角九宫8向攻击</span>
+                          )}
+                          {nextPromo.toAttackShape === 'knight_12' && (
+                            <span>★ 解锁纵横12向奇袭矩阵</span>
+                          )}
+                          {nextPromo.toSplashRatio && (
+                            <span>★ 攻击溅射 {Math.round(nextPromo.toSplashRatio * 100)}%</span>
                           )}
                           {nextPromo.bonus.critRate && (
                             <span>暴击 +{nextPromo.bonus.critRate}%</span>

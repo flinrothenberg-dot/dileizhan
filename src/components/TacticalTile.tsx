@@ -27,6 +27,21 @@ import uPromoTongzijun from '../assets/unit-promo-tongzijun.png';
 import uPromoNiangzijun from '../assets/unit-promo-niangzijun.png';
 import uPromoFeihudui from '../assets/unit-promo-feihudui.png';
 import uPromoDapaodui from '../assets/unit-promo-dapaodui.png';
+import uPromoBiaoqidui from '../assets/unit-promo-biaoqidui.png';
+import uPromoZhongpaodui from '../assets/unit-promo-zhongpaodui.png';
+import uPromoZhongjiqiang from '../assets/unit-promo-zhongjiqiang.png';
+import uLeishizhu from '../assets/unit-leishizhu.png';
+import uLinsao from '../assets/unit-linsao.png';
+import uYulai from '../assets/unit-yulai.png';
+import uWeiqiang from '../assets/unit-weiqiang.png';
+import uLiuhong from '../assets/unit-liuhong.png';
+import uJinhuapo from '../assets/unit-jinhuapo.png';
+import uKmtOfficer from '../assets/unit-kmt_officer.png';
+import uPeter from '../assets/unit-peter.png';
+import uEnemyTank from '../assets/unit-enemy_tank.png';
+import uEnemyArmored from '../assets/unit-enemy_armored.png';
+import uEnemyBunker from '../assets/unit-enemy_bunker.png';
+import uEnemySpy from '../assets/unit-enemy_spy.png';
 
 interface TacticalTileProps {
   x: number;
@@ -65,6 +80,14 @@ export const UNIT_SPRITE_MAP: Record<string, string> = {
   lishuangsi: uLishuangsi,
   zhangchanggeng: uZhangchanggeng,
   jiuye: uJiuye,
+  leishizhu: uLeishizhu,
+  linsao: uLinsao,
+  yulai: uYulai,
+  weiqiang: uWeiqiang,
+  liuhong: uLiuhong,
+  jinhuapo: uJinhuapo,
+  kmt_officer: uKmtOfficer,
+  peter: uPeter,
   gaojingtian: uGaojingtian,
   matsui: uMatsui,
   enemy_officer: uEnemyOfficer,
@@ -73,6 +96,10 @@ export const UNIT_SPRITE_MAP: Record<string, string> = {
   enemy_moto: uEnemyMoto,
   enemy_puppet: uEnemyPuppet,
   enemy_rifle: uEnemyRifle,
+  enemy_tank: uEnemyTank,
+  enemy_armored: uEnemyArmored,
+  enemy_bunker: uEnemyBunker,
+  enemy_spy: uEnemySpy,
   promo_shuangqiang: uLixiangyang,
   promo_chongfeng: uShigengxin,
   promo_wushudui: uPromoWushudui,
@@ -81,6 +108,9 @@ export const UNIT_SPRITE_MAP: Record<string, string> = {
   promo_niangzijun: uPromoNiangzijun,
   promo_feihudui: uPromoFeihudui,
   promo_dapaodui: uPromoDapaodui,
+  promo_biaoqidui: uPromoBiaoqidui,
+  promo_zhongpaodui: uPromoZhongpaodui,
+  promo_zhongjiqiang: uPromoZhongjiqiang,
 };
 
 function getUnitSpriteSrc(unit: Unit): string {
@@ -92,6 +122,10 @@ function getUnitSpriteSrc(unit: Unit): string {
   }
   if (unit.portraitId === 'gaojingtian') return uGaojingtian;
   if (unit.portraitId === 'matsui') return uMatsui;
+  if (unit.portraitId === 'enemy_spy') return uEnemySpy;
+  if (unit.unitClass === '坦克队' || unit.unitClass === '战车') return uEnemyTank;
+  if (unit.unitClass === '铁甲列车' || unit.unitClass === '装甲车') return uEnemyArmored;
+  if (unit.unitClass === '炮楼') return uEnemyBunker;
   if (unit.isBoss) return uEnemyOfficer;
   if (unit.isSapper) return uEnemySapper;
   if (unit.unitClass === '机枪队' || unit.unitClass === '重机枪队') return uEnemyMg;
@@ -141,8 +175,12 @@ export const TacticalTile: React.FC<TacticalTileProps> = ({
       {/* Placed Mine Marker */}
       {mine && !mine.triggered && (
         <div
-          className={`mine-marker mine-${mine.type} ${mine.detected ? 'mine-detected' : ''}`}
-          title={`${MINES[mine.type].name}${mine.detected ? '（已被敌军工兵发现！）' : ''}`}
+          className={`mine-marker mine-${mine.type} ${mine.detected ? 'mine-detected' : ''} ${
+            mine.type === 'yaokong_lei' ? 'mine-remote' : ''
+          }`}
+          title={`${MINES[mine.type].name}${mine.detected ? '（已被敌军工兵发现！）' : ''}${
+            mine.type === 'yaokong_lei' ? '（我方回合点击此雷可遥控引爆周围敌军）' : ''
+          }`}
         >
           <span className="mine-core">{MINES[mine.type].shortName}</span>
           {mine.detected && <span className="mine-alert">!</span>}

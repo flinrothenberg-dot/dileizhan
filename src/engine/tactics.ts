@@ -10,6 +10,10 @@ export function manhattan(a: GridPoint, b: GridPoint): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
+export function chebyshev(a: GridPoint, b: GridPoint): number {
+  return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+}
+
 export function keyOf(x: number, y: number): string {
   return `${x},${y}`;
 }
@@ -27,6 +31,26 @@ export function getUnitCritRate(unit: Unit): number {
   if (unit.id === 'zhulaozhong' || unit.id === 'lishuangsi') return 28;
   if (unit.id === 'commander') return 26;
   return 16;
+}
+
+export function getAttackShapeLabel(unit: Unit): string {
+  const s = unit.attackShape ?? 'diamond';
+  if (s === 'box_8') return '九宫格 8 方近战（含斜角）';
+  if (s === 'knight_12') return '12 向骠骑冲锋矩阵';
+  if (s === 'cardinal_1') return '十字 4 格近身劈砍';
+  return unit.rangeMin === unit.rangeMax
+    ? `菱形 ${unit.rangeMax} 格`
+    : `菱形 ${unit.rangeMin} ~ ${unit.rangeMax} 格`;
+}
+
+export function isTileInAttackRange(unit: Unit, pt: GridPoint): boolean {
+  const md = manhattan(unit, pt);
+  if (md === 0) return false;
+  const shape = unit.attackShape ?? 'diamond';
+  if (shape === 'cardinal_1') return md === 1;
+  if (shape === 'box_8') return chebyshev(unit, pt) === 1;
+  if (shape === 'knight_12') return chebyshev(unit, pt) === 1 || md === 2;
+  return md >= unit.rangeMin && md <= unit.rangeMax;
 }
 
 export interface ReachableResult {
@@ -121,20 +145,20 @@ export function getAttackableTargets(unit: Unit, units: Unit[]): Unit[] {
       other.alive &&
       !other.isCaptive &&
       other.faction !== unit.faction &&
-      manhattan(unit, other) >= unit.rangeMin &&
-      manhattan(unit, other) <= unit.rangeMax
+      isTileInAttackRange(unit, other)
   );
 }
 
 export function getHealableAllies(unit: Unit, units: Unit[]): Unit[] {
   if (!unit.canHealAlly) return [];
+  const healRange = unit.unitClass === '娘子军' ? 3 : 2;
   return units.filter(
     (other) =>
       other.alive &&
       !other.isCaptive &&
       other.faction === unit.faction &&
       other.hp < other.maxHp &&
-      manhattan(unit, other) <= 2
+      manhattan(unit, other) <= healRange
   );
 }
 
@@ -144,8 +168,7 @@ export function getAttackRangeTiles(unit: Unit, tiles: TerrainType[][]): Set<str
   const result = new Set<string>();
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const d = manhattan(unit, { x, y });
-      if (d >= unit.rangeMin && d <= unit.rangeMax) {
+      if (isTileInAttackRange(unit, { x, y })) {
         result.add(keyOf(x, y));
       }
     }
@@ -188,7 +211,9 @@ export function getAttackKind(unit: Unit, distance: number): AttackFx['kind'] {
   if (
     unit.weaponName.includes('抬枪') ||
     unit.weaponName.includes('火铳') ||
-    unit.weaponName.includes('炮台')
+    unit.weaponName.includes('炮台') ||
+    unit.weaponName.includes('榴弹炮') ||
+    unit.weaponName.includes('炮')
   ) {
     return 'heavy_cannon';
   }
@@ -203,7 +228,11 @@ export function getAttackKind(unit: Unit, distance: number): AttackFx['kind'] {
   ) {
     return 'dual_pistol';
   }
-  if (unit.weaponName.includes('大刀') || (unit.weaponName.includes('刀') && distance === 1)) {
+  if (
+    unit.weaponName.includes('大刀') ||
+    unit.weaponName.includes('棍') ||
+    unit.weaponName.includes('刀') && distance <= 2
+  ) {
     return 'blade';
   }
   if (unit.weaponName.includes('弹弓')) {

@@ -17,6 +17,14 @@ import pEnemyOfficer from '../assets/portrait-enemy-officer.jpg';
 import pEnemyPuppet from '../assets/portrait-enemy-puppet.jpg';
 import pEnemySapper from '../assets/portrait-enemy-sapper.jpg';
 import pVillager from '../assets/portrait-villager.jpg';
+import pLeishizhu from '../assets/portrait-leishizhu.jpg';
+import pLinsao from '../assets/portrait-linsao.jpg';
+import pYulai from '../assets/portrait-yulai.jpg';
+import pLiuhong from '../assets/portrait-liuhong.jpg';
+import pJinhuapo from '../assets/portrait-jinhuapo.jpg';
+import pKmtOfficer from '../assets/portrait-kmt-officer.jpg';
+import pPeter from '../assets/portrait-peter.jpg';
+import pEnemySpy from '../assets/portrait-enemy-spy.jpg';
 
 interface CharacterPortraitProps {
   portraitId: string;
@@ -37,11 +45,20 @@ const PORTRAIT_FILES: Record<string, string> = {
   lishuangsi: pLishuangsi,
   zhangchanggeng: pZhangchanggeng,
   jiuye: pJiuye,
+  leishizhu: pLeishizhu,
+  linsao: pLinsao,
+  yulai: pYulai,
+  weiqiang: pLiuhong,
+  liuhong: pLiuhong,
+  jinhuapo: pJinhuapo,
+  kmt_officer: pKmtOfficer,
+  peter: pPeter,
   gaojingtian: pGaojingtian,
   matsui: pMatsui,
   enemy_officer: pEnemyOfficer,
   enemy_puppet: pEnemyPuppet,
   enemy_sapper: pEnemySapper,
+  enemy_spy: pEnemySpy,
   villager: pVillager,
 };
 

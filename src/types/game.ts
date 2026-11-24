@@ -17,7 +17,11 @@ export type MineType =
   | 'shi_lei'
   | 'tie_lei'
   | 'xiezi_lei'
-  | 'yinfa_lei';
+  | 'yinfa_lei'
+  | 'chongtian_pao'
+  | 'cidian_lei'
+  | 'zhangqi_lei'
+  | 'yaokong_lei';
 
 export type MaterialId =
   | 'clay'
@@ -36,8 +40,13 @@ export type PromoBookId =
   | 'qiangxie_jichu'
   | 'qiangxie_jingdian'
   | 'huoqi_jichu'
+  | 'huoqi_jingdian'
+  | 'mashu_jingdian'
+  | 'zhanshu_jingdian'
   | 'hongjin'
   | 'junqi';
+
+export type AttackShape = 'cardinal_1' | 'box_8' | 'knight_12' | 'diamond';
 
 export interface MineDefinition {
   id: MineType;
@@ -45,9 +54,13 @@ export interface MineDefinition {
   shortName: string;
   damage: number;
   splashDamage: number;
+  splashRadius?: number;
   isDecoy?: boolean;
+  stunTurns?: number;
   poisonTurns?: number;
   antiSapper?: boolean;
+  stealthToSapper?: boolean;
+  remoteDetonate?: boolean;
   unlockStage: number;
   description: string;
   recipe: Partial<Record<MaterialId, number>>;
@@ -90,6 +103,8 @@ export interface Unit {
   move: number;
   rangeMin: number;
   rangeMax: number;
+  attackShape?: AttackShape;
+  splashRatio?: number;
   critRate?: number;
   level: number;
   exp: number;
@@ -98,11 +113,11 @@ export interface Unit {
   canHealAlly?: boolean;
   isSapper?: boolean;
   isBoss?: boolean;
-  isCaptive?: boolean; // e.g. Zhu Laozhong before rescue
+  isCaptive?: boolean;
   acted: boolean;
   moved: boolean;
-  stunnedTurns: number; // startled by decoy mine
-  poisonedTurns?: number; // poisoned by scorpion mine
+  stunnedTurns: number;
+  poisonedTurns?: number;
   mines: Record<MineType, number>;
   healItems: number; // 小米
   alive: boolean;
